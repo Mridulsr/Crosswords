@@ -50,3 +50,20 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #2b2b2b;
 }
+
+/* Cross-browser safe gradient text classes with solid color fallback for Vercel/Safari */
+.gradient-text-cyber {
+  background: linear-gradient(to right, #ff007f, #f0b90b, #00f0ff);
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: #ff007f;
+}
+
+.gradient-text-lobby {
+  background: linear-gradient(to right, #ff007f, #f0b90b);
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: #ff007f;
+}

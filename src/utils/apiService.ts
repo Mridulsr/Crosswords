@@ -1,101 +1,9 @@
 import { DictionaryResult, HintSuggestion } from "../types";
+import { getOfflineWord, FORBIDDEN_SHORT_FORMS } from "./offlineDictionary";
 
 // Client-side caches to avoid redundant HTTP requests
 const clientLookupCache = new Map<string, DictionaryResult>();
 const clientHintCache = new Map<string, HintSuggestion[]>();
-
-// Standard English base words for fallback offline validation
-const OFFLINE_WORDS = new Set([
-  "bus", "bust", "busy", "make", "makes", "maker", "cat", "cats", "dog", "dogs", "play", "player", "plays", "game", "games",
-  "word", "words", "star", "stars", "start", "starts", "state", "states", "stop", "stops", "step", "steps", "stone", "stones",
-  "book", "books", "box", "boxes", "boy", "boys", "girl", "girls", "man", "men", "woman", "women", "child", "children",
-  "car", "cars", "train", "trains", "plane", "planes", "ship", "ships", "boat", "boats", "bike", "bikes", "road", "roads",
-  "street", "streets", "city", "cities", "town", "towns", "house", "houses", "home", "homes", "room", "rooms", "door", "doors",
-  "window", "windows", "wall", "walls", "floor", "floors", "roof", "roofs", "garden", "gardens", "park", "parks", "tree", "trees",
-  "flower", "flowers", "grass", "sun", "moon", "star", "sky", "cloud", "clouds", "rain", "snow", "wind", "fire", "water", "earth",
-  "land", "sea", "river", "lake", "ocean", "fish", "bird", "birds", "animal", "animals", "apple", "banana", "orange", "grape",
-  "bread", "butter", "cheese", "milk", "water", "juice", "tea", "coffee", "sugar", "salt", "pepper", "meat", "food", "eat", "drink",
-  "run", "walk", "jump", "fly", "swim", "sing", "dance", "read", "write", "speak", "listen", "learn", "teach", "think", "know",
-  "want", "need", "love", "like", "hate", "happy", "sad", "angry", "scared", "tired", "brave", "strong", "weak", "fast", "slow",
-  "good", "bad", "hot", "cold", "warm", "cool", "new", "old", "young", "big", "small", "tall", "short", "long", "wide", "thin",
-  "red", "blue", "green", "yellow", "black", "white", "gray", "brown", "pink", "purple", "orange", "gold", "silver", "one", "two",
-  "three", "four", "five", "six", "seven", "eight", "nine", "ten", "time", "day", "night", "week", "month", "year", "hour", "minute",
-  "friend", "family", "school", "class", "teacher", "student", "paper", "pen", "pencil", "desk", "chair", "table", "bed", "sleep",
-  "wake", "work", "job", "money", "shop", "buy", "sell", "pay", "cost", "price", "free", "cheap", "rich", "poor", "hard", "easy",
-  "safe", "hurt", "sick", "well", "life", "death", "love", "peace", "war", "hope", "fear", "mind", "soul", "body", "face", "eye",
-  "eyes", "ear", "ears", "nose", "mouth", "hair", "head", "neck", "arm", "hand", "hands", "finger", "fingers", "leg", "foot", "feet",
-  "heart", "blood", "brain", "tooth", "teeth", "voice", "song", "music", "art", "paint", "draw", "color", "photo", "film", "show",
-  "line", "point", "space", "form", "shape", "size", "weight", "force", "power", "light", "dark", "sound", "voice", "word", "talk",
-  "tell", "say", "ask", "hear", "see", "look", "feel", "smell", "taste", "touch", "hold", "take", "give", "keep", "find", "lose",
-  "win", "lose", "play", "turn", "score", "points", "rules", "level", "mode", "time", "clock", "timer", "speed", "fast", "slow",
-  "test", "try", "done", "help", "save", "back", "next", "last", "first", "best", "worst", "great", "fine", "nice", "kind", "mean",
-  "true", "false", "fact", "idea", "plan", "goal", "hope", "wish", "dream", "fear", "care", "love", "hate", "mind", "self", "life",
-  "zone", "line", "spot", "mark", "sign", "word", "page", "note", "letter", "name", "list", "text", "mail", "post", "news", "view",
-  "hero", "villain", "king", "queen", "prince", "lord", "lady", "sir", "chief", "leader", "boss", "staff", "crew", "team", "club",
-  "user", "admin", "guest", "client", "agent", "bot", "code", "data", "file", "disk", "link", "web", "site", "page", "blog", "app",
-  "pant", "panto", "pants", "pantomime", "penis", "pencil", "paint", "paper", "part", "past", "path", "peak", "pear", "peel", "peer", "eed",
-  "eta", "ate", "tea", "eat", "pea", "ape", "pet", "get", "got", "set", "let", "met", "net", "wet", "yet", "tap", "pat", "apt", "cap", "pac", "cat", "act", "rat", "art", "tar", "sat", "tas", "hat", "fat", "mat", "vat", "map", "pam", "amp", "sap", "pas", "asp", "rap", "par", "arp", "nap", "pan", "tan", "ant", "nat", "gap", "pag", "bag", "gab", "tab", "bat", "lab", "bal", "cab", "bac", "pad", "dad", "sad", "mad", "lad", "bad", "cad", "fad", "had", "rad", "tad", "wad", "yak", "elk", "yelk", "eye", "dye", "bye", "rye", "lye", "tie", "pie", "lie", "die", "fie", "vie", "how", "who", "why", "way", "day", "pay", "may", "say", "lay", "ray", "bay", "hay", "gay", "jay", "kay", "nay", "fay", "yaw", "jaw", "law", "raw", "saw", "paw", "cow", "bow", "sow", "row", "mow", "tow", "vow", "low", "now", "own", "won", "one", "two", "ten", "pen", "hen", "men", "den", "ken", "fen", "zen", "pin", "bin", "tin", "fin", "win", "sin", "din", "gin", "kin", "lin", "nib", "rib", "fib", "bib", "bob", "cob", "fob", "gob", "hob", "job", "lob", "mob", "rob", "sob", "tub", "rub", "sub", "pub", "hub", "cub", "dub", "bud", "mud", "cud", "dud", "rud", "sud", "hug", "mug", "dug", "bug", "tug", "rug", "jug", "pug", "gum", "hum", "sum", "rum", "bum", "mum", "dum", "sun", "run", "fun", "bun", "pun", "nun", "gun", "cup", "pup", "sup", "cut", "but", "out", "nut", "gut", "hut", "rut", "jut", "put", "dry", "cry", "try", "fry", "pry", "sly", "spy", "shy", "fly", "sky", "ski", "sea", "see", "fee", "bee", "toy", "coy", "joy", "soy", "key", "hey", "ley", "dey", "not", "hot", "lot", "pot", "rot", "dot", "cot", "jot", "tot", "bot", "sot", "wot", "god", "cod", "nod", "rod", "pod", "sod", "mod", "toe", "foe", "hoe", "roe", "woe", "oat", "era", "ear", "are", "our", "use", "sue", "due", "rue", "cue", "emu", "gnu", "owl", "awl", "eel", "oil", "ill", "all", "ell", "air", "fir", "sir", "fur", "oar", "car", "bar", "far", "jar", "war", "par", "mar", "her", "his", "him", "the", "and", "for", "nor", "yes", "too", "new", "old", "age", "ago", "fit", "bit", "hit", "sit", "lit", "kit", "pit", "wit", "tit", "zip", "rip", "tip", "lip", "sip", "dip", "hip", "pip", "nip", "gip", "lid", "kid", "rid", "did", "bid", "mid", "sid", "hid", "aid", "add", "odd", "end", "any", "its", "six", "son", "ton", "few", "ski", "van", "can", "fan", "ran", "ban", "rag", "tag", "wag", "sag", "sunny", "rainy", "cloudy", "windy", "snowy", "foggy", "muddy", "funny", "stormy", "misty", "breezy", "chilly", "icy", "warmth", "heats", "cools", "freezes", "frozen", "gales", "mild", "flames", "smokes", "woods", "stones", "clays", "muds", "sands", "dusts", "dirts", "earths", "forests", "valleys", "cliffs", "caves", "rivers", "streams", "brooks", "creeks", "lakes", "ponds", "pools", "waves", "tides", "coasts", "shores", "beaches", "islands", "worlds", "planets", "spaces", "stars", "clouds", "rains", "snows", "winds", "storms", "fogs", "mists", "hazes", "breezes", "weathers", "climates", "temps", "fires", "ashes", "coals", "grounds", "lands", "fields", "meadows", "deserts", "mounts", "hills", "canyons", "bends", "turns", "loops", "moves", "plays", "games", "words", "rules", "levels", "scores", "points", "clocks", "timers", "speeds", "tests", "tries", "helps", "saves", "backs", "nexts", "lasts", "firsts", "bests", "ideas", "plans", "goals", "hopes", "wishes", "dreams", "fears", "cares", "loves", "hates", "minds", "selves", "lives", "zones", "lines", "spots", "marks", "signs", "pages", "notes", "letters", "names", "lists", "texts", "mails", "posts", "views", "heros", "kings", "queens", "princes", "lords", "ladies", "chiefs", "leaders", "bosses", "staffs", "crews", "teams", "clubs", "users", "admins", "guests", "clients", "agents", "bots", "codes", "files", "disks", "links", "webs", "sites", "blogs", "apps", "pants", "paints", "papers", "parts", "pasts", "paths", "peaks", "pears", "peels", "peers", "gaps", "paves", "germs", "gifts", "girls", "golds", "golfs", "gongs", "goods", "goofs", "goons", "gores", "gowns", "grabs", "grads", "grams", "grans", "grays", "grids", "grins", "grips", "grits", "grows", "grubs", "gulfs", "gulls", "gulps", "gunks", "gushs", "gusts",
-]);
-
-export const FORBIDDEN_SHORT_FORMS = new Set(["tia", "tiap", "lop", "onl", "nonl", "nonlp", "enonlp", "ing", "tking"]);
-
-/**
- * Checks if a word exists in our local offline base words or matches common suffixes.
- */
-function checkOfflineWord(word: string): boolean {
-  const clean = word.trim().toLowerCase();
-  if (OFFLINE_WORDS.has(clean)) return true;
-  
-  // 1. Plural/Suffix "s"
-  if (clean.endsWith("s") && clean.length > 2 && OFFLINE_WORDS.has(clean.slice(0, -1))) {
-    return true;
-  }
-  // 2. Plural/Suffix "es"
-  if (clean.endsWith("es") && clean.length > 3 && OFFLINE_WORDS.has(clean.slice(0, -2))) {
-    return true;
-  }
-  // 3. Past tense "ed"
-  if (clean.endsWith("ed") && clean.length > 3) {
-    const base = clean.slice(0, -2);
-    if (OFFLINE_WORDS.has(base) || OFFLINE_WORDS.has(base + "e")) return true;
-  }
-  // 4. Participle "ing"
-  if (clean.endsWith("ing") && clean.length > 4) {
-    const base = clean.slice(0, -3);
-    if (OFFLINE_WORDS.has(base) || OFFLINE_WORDS.has(base + "e")) return true;
-  }
-  // 5. Comparative/agent "er"
-  if (clean.endsWith("er") && clean.length > 3) {
-    const withoutER = clean.slice(0, -2);
-    if (OFFLINE_WORDS.has(withoutER)) return true;
-    if (withoutER.endsWith("i") && OFFLINE_WORDS.has(withoutER.slice(0, -1) + "y")) return true;
-    if (withoutER.length > 2 && withoutER[withoutER.length - 1] === withoutER[withoutER.length - 2] && OFFLINE_WORDS.has(withoutER.slice(0, -1))) return true;
-    if (OFFLINE_WORDS.has(withoutER + "e")) return true;
-  }
-  // 6. Superlative "est"
-  if (clean.endsWith("est") && clean.length > 4) {
-    const withoutEST = clean.slice(0, -3);
-    if (OFFLINE_WORDS.has(withoutEST)) return true;
-    if (withoutEST.endsWith("i") && OFFLINE_WORDS.has(withoutEST.slice(0, -1) + "y")) return true;
-    if (withoutEST.length > 2 && withoutEST[withoutEST.length - 1] === withoutEST[withoutEST.length - 2] && OFFLINE_WORDS.has(withoutEST.slice(0, -1))) return true;
-    if (OFFLINE_WORDS.has(withoutEST + "e")) return true;
-  }
-  // 7. Adjective ending in "y" (e.g., sunny, cloudy, rainy, windy)
-  if (clean.endsWith("y") && clean.length > 3) {
-    const withoutY = clean.slice(0, -1);
-    if (OFFLINE_WORDS.has(withoutY)) return true;
-    if (withoutY.length > 2 && withoutY[withoutY.length - 1] === withoutY[withoutY.length - 2] && OFFLINE_WORDS.has(withoutY.slice(0, -1))) return true;
-    if (OFFLINE_WORDS.has(withoutY + "e")) return true;
-  }
-  // 8. Adverb ending in "ly" (e.g., slowly, sadly, happily)
-  if (clean.endsWith("ly") && clean.length > 4) {
-    const withoutLY = clean.slice(0, -2);
-    if (OFFLINE_WORDS.has(withoutLY)) return true;
-    if (withoutLY.endsWith("i") && OFFLINE_WORDS.has(withoutLY.slice(0, -1) + "y")) return true;
-  }
-  
-  return false;
-}
 
 /**
  * Validates a word using the server-side AI dictionary API, falling back gracefully
@@ -103,13 +11,15 @@ function checkOfflineWord(word: string): boolean {
  */
 export async function lookupWord(word: string): Promise<DictionaryResult> {
   const cleaned = word.trim().toLowerCase();
-  if (FORBIDDEN_SHORT_FORMS.has(cleaned)) {
+  
+  const offlineResult = getOfflineWord(cleaned) as DictionaryResult | null;
+  if (offlineResult && !offlineResult.isValid) {
     return {
       isValid: false,
       word: cleaned,
       partOfSpeech: "",
-      definition: "This is a forbidden short-form abbreviation.",
-      reason: "Short-forms/abbreviations (like TIA, TIAP, LOP, ONL, NONL, NONLP, ENONLP) are strictly disallowed and will trigger a point penalty!"
+      definition: offlineResult.definition,
+      reason: offlineResult.reason || "Short-forms/abbreviations are strictly disallowed."
     };
   }
 
@@ -158,17 +68,27 @@ export async function lookupWord(word: string): Promise<DictionaryResult> {
       console.warn("Public Online Dictionary API failed, falling back to local offline dictionary:", publicError);
     }
 
-    // Heuristic fallback to local offline word validation
-    const mockValid = checkOfflineWord(cleaned);
+    // Comprehensive fallback using our shared offline dictionary definitions
+    if (offlineResult) {
+      const fallbackResult: DictionaryResult = {
+        isValid: offlineResult.isValid,
+        word: cleaned,
+        partOfSpeech: offlineResult.partOfSpeech || "noun/verb",
+        definition: offlineResult.definition || "Valid English word (evaluated offline).",
+        funFact: offlineResult.funFact || "A popular word in the LetterForge offline dictionary archive!",
+        reason: offlineResult.reason
+      };
+      clientLookupCache.set(cleaned, fallbackResult);
+      return fallbackResult;
+    }
+
     const fallbackResult: DictionaryResult = {
-      isValid: mockValid,
+      isValid: false,
       word: cleaned,
-      partOfSpeech: mockValid ? "noun/verb" : "",
-      definition: mockValid
-        ? "Valid English word (evaluated offline)."
-        : "Word is not recognized in our offline dictionary database.",
+      partOfSpeech: "",
+      definition: "Word is not recognized in our offline dictionary database.",
       funFact: "Check your internet connection to access full AI dictionary definitions and origins!",
-      reason: mockValid ? undefined : "Word was not found in the offline wordlist."
+      reason: "Word was not found in the offline wordlist."
     };
     clientLookupCache.set(cleaned, fallbackResult);
     return fallbackResult;

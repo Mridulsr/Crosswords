@@ -58,8 +58,8 @@ const themeStyles = {
     boxCompleted: "bg-gradient-to-br from-[#4d009a]/50 to-[#2c0066]/70 border-[#ff007f]/50 text-white",
     activeTurnGlow: "shadow-[0_0_20px_#ff007f]",
     badgeText: "text-[#ff007f]",
-    title: "text-transparent bg-clip-text bg-gradient-to-r from-[#ff007f] via-[#f0b90b] to-[#00f0ff] filter drop-shadow-[0_2px_8px_rgba(255,0,127,0.4)]",
-    titleLobby: "text-transparent bg-clip-text bg-gradient-to-r from-[#ff007f] to-[#f0b90b]",
+    title: "gradient-text-cyber font-black drop-shadow-[0_2px_8px_rgba(255,0,127,0.4)]",
+    titleLobby: "gradient-text-lobby font-black",
     borderMuted: "border-[#ff007f]/20",
     inputBg: "bg-[#1c123c] border-[#ff007f]/30 text-white focus:ring-[#ff007f]"
   },
@@ -1432,7 +1432,7 @@ export default function App() {
               
               {/* Introduction Banner */}
               <div className="border-2 border-[#ff007f]/40 bg-[#150d3a]/60 p-6 md:p-8 rounded-xl backdrop-blur shadow-[0_0_15px_rgba(255,0,127,0.15)]">
-                <h2 className="text-2xl md:text-3xl font-black mb-3 italic tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-[#ff007f] to-[#f0b90b]">
+                <h2 className="text-2xl md:text-3xl font-black mb-3 italic tracking-tight gradient-text-lobby">
                   Welcome to {gameTitle}.
                 </h2>
                 <p className="text-sm md:text-base leading-relaxed text-zinc-300 mb-6 font-sans">
