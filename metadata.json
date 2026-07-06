@@ -1,0 +1,6 @@
+{
+  "name": "LetterForge",
+  "description": "An addictive, multi-player word-building chain game. Form words by adding letters, outwit friends or AI, dodge timers, and master word-building rules!",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
