@@ -18,7 +18,7 @@ import {
   fetchAIHints,
   fetchGeminiStatus,
 } from "./utils/apiService";
-import { getOfflineWord } from "./utils/offlineDictionary";
+import { getOfflineWord, OFFLINE_WORDS } from "./utils/offlineDictionary";
 import DictionaryChecker from "./components/DictionaryChecker";
 import {
   Sparkles,
@@ -330,7 +330,8 @@ export default function App() {
   // --- Campaign Level Mode ---
   const [levelMode, setLevelMode] = useState<boolean>(true);
   const [currentLevel, setCurrentLevel] = useState<number>(1);
-  const [smartCompletions, setSmartCompletions] = useState<{ letter: string; word: string; points: number; isHoriz: boolean }[]>([]);
+  const [lobbyTab, setLobbyTab] = useState<"campaign" | "custom">("campaign");
+  const [smartCompletions, setSmartCompletions] = useState<{ letter: string; word: string; points: number; isHoriz: boolean; targetWord?: string; completionPercent?: number }[]>([]);
 
   // AI Hint status
   const [aiHints, setAiHints] = useState<HintSuggestion[]>([]);
@@ -527,8 +528,9 @@ export default function App() {
     }
 
     const analyzeCompletions = () => {
-      const completionsList: { letter: string; word: string; points: number; isHoriz: boolean }[] = [];
+      const completionsList: { letter: string; word: string; points: number; isHoriz: boolean; targetWord?: string; completionPercent?: number }[] = [];
       const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+      const offlineWordsArr = Array.from(OFFLINE_WORDS);
 
       for (const char of alphabet) {
         // Place letter in simulated board
@@ -538,61 +540,105 @@ export default function App() {
         const horiz = getHorizontalBlock(temp, selectedBoxIdx);
         const vert = getVerticalBlock(temp, selectedBoxIdx);
 
-        if (horiz.word.length >= 3) {
-          const cleanH = horiz.word.toLowerCase();
-          const match = getOfflineWord(cleanH);
-          if (match && match.isValid && !isCussWord(cleanH)) {
-            completionsList.push({
-              letter: char,
-              word: horiz.word,
-              points: horiz.word.length,
-              isHoriz: true
-            });
-            continue;
+        // Helper to find best target completion word in dictionary
+        const findBestCompletionForBlock = (blockText: string) => {
+          if (!blockText || blockText.length === 0) return null;
+          const clean = blockText.toLowerCase();
+          const cleanRev = clean.split("").reverse().join("");
+
+          // 1. Check if it is already a direct complete word
+          const matchDirect = getOfflineWord(clean);
+          if (matchDirect && matchDirect.isValid && !isCussWord(clean)) {
+            const isPlayed = alreadyPlayedWords.some(w => w.toLowerCase() === clean);
+            return {
+              word: blockText,
+              targetWord: blockText,
+              points: blockText.length + (isPlayed ? 0 : 1000), // Boost points if not already played
+              completionPercent: 100
+            };
           }
-          // Check reverse
-          const cleanHRev = cleanH.split("").reverse().join("");
-          const matchRev = getOfflineWord(cleanHRev);
-          if (matchRev && matchRev.isValid && !isCussWord(cleanHRev)) {
-            completionsList.push({
-              letter: char,
-              word: horiz.word + " (Rev)",
-              points: horiz.word.length,
-              isHoriz: true
-            });
-            continue;
+
+          const matchDirectRev = getOfflineWord(cleanRev);
+          if (matchDirectRev && matchDirectRev.isValid && !isCussWord(cleanRev)) {
+            const isPlayed = alreadyPlayedWords.some(w => w.toLowerCase() === cleanRev);
+            return {
+              word: blockText + " (Rev)",
+              targetWord: cleanRev.toUpperCase(),
+              points: blockText.length + (isPlayed ? 0 : 1000),
+              completionPercent: 100
+            };
           }
+
+          // 2. Scan offline dictionary for best prefix/suffix/substring matches
+          let bestTarget: string | null = null;
+          let bestRatio = 0;
+
+          for (const wordCandidate of offlineWordsArr) {
+            if (wordCandidate.length < 3 || isCussWord(wordCandidate)) continue;
+
+            const isPlayed = alreadyPlayedWords.some(w => w.toLowerCase() === wordCandidate.toLowerCase());
+            if (isPlayed) continue; // Skip already played words
+
+            const idxF = wordCandidate.indexOf(clean);
+            const idxB = wordCandidate.indexOf(cleanRev);
+
+            if (idxF !== -1) {
+              const ratio = clean.length / wordCandidate.length;
+              if (ratio > bestRatio) {
+                bestRatio = ratio;
+                bestTarget = wordCandidate;
+              }
+            } else if (idxB !== -1) {
+              const ratio = cleanRev.length / wordCandidate.length;
+              if (ratio > bestRatio) {
+                bestRatio = ratio;
+                bestTarget = wordCandidate;
+              }
+            }
+          }
+
+          if (bestTarget) {
+            return {
+              word: blockText,
+              targetWord: bestTarget.toUpperCase(),
+              points: Math.round(bestRatio * 15) + blockText.length,
+              completionPercent: Math.round(bestRatio * 100)
+            };
+          }
+
+          return null;
+        };
+
+        // Horizontal
+        const hResult = findBestCompletionForBlock(horiz.word);
+        if (hResult) {
+          completionsList.push({
+            letter: char,
+            word: hResult.word,
+            points: hResult.points,
+            isHoriz: true,
+            targetWord: hResult.targetWord,
+            completionPercent: hResult.completionPercent
+          });
         }
 
-        if (vert.word.length >= 3) {
-          const cleanV = vert.word.toLowerCase();
-          const match = getOfflineWord(cleanV);
-          if (match && match.isValid && !isCussWord(cleanV)) {
-            completionsList.push({
-              letter: char,
-              word: vert.word,
-              points: vert.word.length,
-              isHoriz: false
-            });
-            continue;
-          }
-          // Check reverse
-          const cleanVRev = cleanV.split("").reverse().join("");
-          const matchRev = getOfflineWord(cleanVRev);
-          if (matchRev && matchRev.isValid && !isCussWord(cleanVRev)) {
-            completionsList.push({
-              letter: char,
-              word: vert.word + " (Rev)",
-              points: vert.word.length,
-              isHoriz: false
-            });
-            continue;
-          }
+        // Vertical
+        const vResult = findBestCompletionForBlock(vert.word);
+        if (vResult) {
+          completionsList.push({
+            letter: char,
+            word: vResult.word,
+            points: vResult.points,
+            isHoriz: false,
+            targetWord: vResult.targetWord,
+            completionPercent: vResult.completionPercent
+          });
         }
       }
 
       // Sort by points descending
       completionsList.sort((a, b) => b.points - a.points);
+
       // Remove duplicate letters (keep highest scoring)
       const uniqueCompletions: typeof completionsList = [];
       const seenLetters = new Set<string>();
@@ -607,7 +653,7 @@ export default function App() {
     };
 
     analyzeCompletions();
-  }, [selectedBoxIdx, board, gameState]);
+  }, [selectedBoxIdx, board, gameState, alreadyPlayedWords]);
 
   // Keep latest refs of selected states to ensure the auto-timer interval never has stale closures
   const selectedBoxIdxRef = useRef<number | null>(null);
@@ -1586,7 +1632,24 @@ export default function App() {
       // Checked candidate word(s) but none are valid dictionary words
       playSound("error");
 
-      // Still place the letter to keep the grid dynamic, but 0 points
+      if (!activePlayer.isComputer) {
+        // Human mistake: give them mistake time, don't pass turn, let them correct it!
+        const extraMs = 15000;
+        const newRemainingMs = turnTimeLeftMsRef.current + extraMs;
+        setTurnTimeLeftMs(newRemainingMs);
+        setSelectedBoxIdx(boxIndex);
+        setSelectedLetter(null);
+        
+        // Re-start turn timer with the updated time
+        startTurnTimer(newRemainingMs);
+
+        const attempted = [hasHoriz ? hWord : null, hasVert ? vWord : null].filter(Boolean).join(" / ");
+        setErrorMessage(`"${attempted}" is not recognized in the dictionary. We've added +15s of mistake time! Try a different letter.`);
+        setStatusMessage(`Mistake corrected! Re-try your move on Square ${squareCoord}.`);
+        return;
+      }
+
+      // If it's AI, it is a seeding move: place the letter to keep grid dynamic
       setBoard(newBoard);
 
       const updatedPlayers = [...players];
@@ -1780,232 +1843,360 @@ export default function App() {
         {gameState === "lobby" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8" id="lobby-view">
             
-            {/* Setup and Rules Description */}
-            <div className="lg:col-span-7 flex flex-col gap-6">
-              
-              {/* Introduction Banner */}
-              <div className="border-2 border-[#ff007f]/40 bg-[#150d3a]/60 p-6 md:p-8 rounded-xl backdrop-blur shadow-[0_0_15px_rgba(255,0,127,0.15)]">
-                <h2 className="text-2xl md:text-3xl font-black mb-3 italic tracking-tight gradient-text-lobby">
-                  Welcome to {gameTitle}.
-                </h2>
-                <p className="text-sm md:text-base leading-relaxed text-zinc-300 mb-6 font-sans">
-                  {gameTitle} is a grid-based tactile spelling game where you can place letters 
-                  <strong className="text-[#00f0ff]"> anywhere on an empty board</strong> of boxes. Start a letter at any slot, 
-                  then select adjacent boxes to form, extend, or merge English words! 
-                </p>
-
-                {/* Grid-based Rules Details */}
-                <div className="border-t border-[#ff007f]/20 pt-4">
-                  <h3 className="text-xs uppercase font-sans tracking-[0.2em] font-extrabold mb-3 text-[#ff007f] flex items-center gap-1.5">
-                    <Info className="w-4 h-4" /> Strategic Guidelines
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="border-l-2 border-[#00f0ff]/50 pl-3">
-                      <h4 className="text-xs font-sans font-bold uppercase mb-1 text-[#00f0ff]">
-                        1. Start Anywhere
-                      </h4>
-                      <p className="text-xs text-zinc-400 leading-normal">
-                        Click any empty box in the grid to place your starting letter. No preset starting sequence!
-                      </p>
-                    </div>
-                    <div className="border-l-2 border-[#00f0ff]/50 pl-3">
-                      <h4 className="text-xs font-sans font-bold uppercase mb-1 text-[#00f0ff]">
-                        2. Connect and Extend
-                      </h4>
-                      <p className="text-xs text-zinc-400 leading-normal">
-                        Build words by placing letters in empty boxes. Points are awarded when contiguous non-empty letters contain a valid English word of 3+ letters.
-                      </p>
-                    </div>
-                    <div className="border-l-2 border-[#ff007f]/50 pl-3">
-                      <h4 className="text-xs font-sans font-bold uppercase mb-1 text-[#ff007f]">
-                        3. Suffix Prevention Rule
-                      </h4>
-                      <p className="text-xs text-zinc-400 leading-normal">
-                        Appending common suffixes (S, ES, ED, ING, ER, EST, LY) to an already scored completed word yields 0 points. Focus on genuine word building!
-                      </p>
-                    </div>
-                    <div className="border-l-2 border-[#f0b90b]/50 pl-3">
-                      <h4 className="text-xs font-sans font-bold uppercase mb-1 text-[#f0b90b]">
-                        4. Adaptive AI Opponent
-                      </h4>
-                      <p className="text-xs text-zinc-400 leading-normal">
-                        Our Gemini-powered AI intelligently analyzes empty boxes and places tactical characters to score points or block your paths!
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Match Configuration */}
-              <div className="border border-[#ff007f]/30 bg-[#150d3a]/50 p-6 rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
-                <h3 className="text-xs uppercase tracking-widest font-sans font-bold border-b border-[#ff007f]/20 pb-2 mb-4 text-[#ff007f]">
-                  Arena Settings
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  {/* Select Mode */}
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider font-sans font-bold mb-2 text-zinc-300">
-                      Game Mode
-                    </label>
-                    <div className="flex flex-col gap-2">
-                      <button
-                        onClick={() => { setMode("computer"); playSound("click"); }}
-                        className={`px-3 py-2 border text-left flex items-center justify-between text-xs font-sans font-bold uppercase tracking-wider transition-all rounded ${
-                          mode === "computer"
-                            ? "bg-gradient-to-r from-[#ff007f] to-[#9d00ff] text-white border-transparent shadow-[0_0_8px_rgba(255,0,127,0.4)]"
-                            : "bg-[#1c123c]/60 text-zinc-300 border-[#ff007f]/20 hover:border-[#ff007f]"
-                        }`}
-                      >
-                        <span className="flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> Vs AI</span>
-                        {mode === "computer" && <Check className="w-3 h-3 text-white" />}
-                      </button>
-                      <button
-                        onClick={() => { setMode("pvp"); playSound("click"); }}
-                        className={`px-3 py-2 border text-left flex items-center justify-between text-xs font-sans font-bold uppercase tracking-wider transition-all rounded ${
-                          mode === "pvp"
-                            ? "bg-gradient-to-r from-[#ff007f] to-[#9d00ff] text-white border-transparent shadow-[0_0_8px_rgba(255,0,127,0.4)]"
-                            : "bg-[#1c123c]/60 text-zinc-300 border-[#ff007f]/20 hover:border-[#ff007f]"
-                        }`}
-                      >
-                        <span className="flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> 1v1 Duel</span>
-                        {mode === "pvp" && <Check className="w-3 h-3 text-white" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Board Size selection */}
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider font-sans font-bold mb-2 text-[#ff007f]">
-                      Vice Grid Edition
-                    </label>
-                    <div className="bg-[#1c123c]/80 text-white p-3 border border-[#ff007f]/40 rounded font-sans shadow-sm">
-                      <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#00f0ff] block mb-1 animate-pulse">
-                        Capacity Expanded
-                      </span>
-                      <p className="text-[11px] font-medium leading-snug text-zinc-300">
-                        1000 Empty Squares (40x25 Grid). Build words anywhere!
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* AI Difficulty */}
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider font-sans font-bold mb-2 text-zinc-300">
-                      AI Tier
-                    </label>
-                    <div className="flex flex-col gap-2">
-                      {(["easy", "medium", "hard"] as Difficulty[]).map((level) => (
-                        <button
-                          key={level}
-                          disabled={mode !== "computer"}
-                          onClick={() => { setDifficulty(level); playSound("click"); }}
-                          className={`px-3 py-1.5 border text-left flex items-center justify-between text-xs font-sans font-bold uppercase tracking-wider transition-all rounded disabled:opacity-45 disabled:cursor-not-allowed ${
-                            difficulty === level && mode === "computer"
-                              ? "bg-white text-[#150d3a] border-transparent font-black"
-                              : "bg-[#1c123c]/60 text-zinc-300 border-zinc-700/50 hover:border-[#ff007f]/50"
-                          }`}
-                        >
-                          <span>{level}</span>
-                          {difficulty === level && mode === "computer" && <span className="w-1.5 h-1.5 rounded-full bg-[#ff007f] shadow-[0_0_6px_#ff007f]" />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Turn Timer Limits */}
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider font-sans font-bold mb-2 text-zinc-300">
-                      Turn Timer
-                    </label>
-                    <div className="flex flex-col gap-2">
-                      {[15, 30, 45, 0].map((sec) => (
-                        <button
-                          key={sec}
-                          onClick={() => { setTimeLimitSec(sec); playSound("click"); }}
-                          className={`px-3 py-1.5 border text-left flex items-center justify-between text-xs font-mono font-bold transition-all rounded ${
-                            timeLimitSec === sec
-                              ? "bg-[#ff007f] text-white border-transparent shadow-[0_0_6px_#ff007f]"
-                              : "bg-[#1c123c]/60 text-zinc-300 border-[#ff007f]/10 hover:border-[#ff007f]/30"
-                          }`}
-                        >
-                          <span>{sec === 0 ? "Infinite" : `${sec}s`}</span>
-                          {timeLimitSec === sec && <Clock className="w-3 h-3 text-white" />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+            {/* LOBBY MODES NAVIGATION BAR */}
+            <div className="col-span-12 flex justify-center mb-2">
+              <div className="bg-[#150d3a]/80 p-1.5 rounded-xl border border-[#ff007f]/30 flex flex-wrap gap-2 justify-center">
+                <button
+                  onClick={() => { setLobbyTab("campaign"); setLevelMode(true); playSound("click"); }}
+                  className={`px-6 py-3 rounded-lg text-xs font-sans font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+                    lobbyTab === "campaign"
+                      ? "bg-gradient-to-r from-[#ff007f] via-[#9d00ff] to-[#00f0ff] text-white shadow-[0_0_12px_rgba(255,0,127,0.5)]"
+                      : "text-zinc-400 hover:text-white hover:bg-[#ff007f]/10"
+                  }`}
+                >
+                  🏆 Campaign Stages (5 Tough Levels)
+                </button>
+                <button
+                  onClick={() => { setLobbyTab("custom"); setLevelMode(false); playSound("click"); }}
+                  className={`px-6 py-3 rounded-lg text-xs font-sans font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${
+                    lobbyTab === "custom"
+                      ? "bg-gradient-to-r from-[#ff007f] via-[#9d00ff] to-[#00f0ff] text-white shadow-[0_0_12px_rgba(255,0,127,0.5)]"
+                      : "text-zinc-400 hover:text-white hover:bg-[#ff007f]/10"
+                  }`}
+                >
+                  ⚔️ Custom Sandbox (Free Play)
+                </button>
               </div>
             </div>
 
-            {/* Players Registration and Match start */}
-            <div className="lg:col-span-5 flex flex-col gap-6">
-              <div className="border border-[#ff007f]/30 bg-[#150d3a]/50 p-6 rounded-xl flex-1 flex flex-col justify-between shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
-                <div>
-                  <h3 className="text-xs uppercase tracking-widest font-sans font-bold border-b border-[#ff007f]/20 pb-2 mb-4 flex items-center justify-between text-[#00f0ff]">
-                    <span>Active Players ({players.length})</span>
-                    <span className="text-[10px] bg-[#ff007f]/10 text-[#ff007f] border border-[#ff007f]/20 px-2 py-0.5 rounded font-mono uppercase font-bold">
-                      Vice Edition
-                    </span>
+            {lobbyTab === "campaign" ? (
+              <div className="col-span-12 flex flex-col gap-6 animate-fade-in" id="campaign-levels-selection">
+                {/* Campaign Header banner */}
+                <div className="border border-[#ff007f]/30 bg-[#150d3a]/60 p-6 rounded-xl text-center max-w-3xl mx-auto w-full">
+                  <h3 className="text-xl font-sans font-black tracking-tight text-[#00f0ff] mb-2 uppercase flex items-center justify-center gap-2">
+                    🏆 Tactical Campaign Progression
                   </h3>
+                  <p className="text-xs text-zinc-300 leading-relaxed font-sans">
+                    Each level is designed to test your dictionary spelling skills on our 1000-square board of boxes. 
+                    Be careful! Higher levels place hazardous <strong className="text-[#ff007f]">❌ rusty obstacle nodes</strong> across the board, enforce a rapid lightning turn countdown, and turn up the AI's spelling tactics. Reach the target score to claim victory!
+                  </p>
+                </div>
 
-                  {/* Player List */}
-                  <div className="space-y-3 mb-6 max-h-[250px] overflow-y-auto pr-1">
-                    {players.map((p, idx) => (
-                      <div
-                        key={p.id}
-                        className="flex items-center justify-between p-3 border border-[#ff007f]/20 bg-[#1c123c]/60 rounded-lg relative overflow-hidden"
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  {LEVELS.map((lvl) => {
+                    const isUnlocked = currentLevel >= lvl.levelNumber;
+                    const isActive = currentLevel === lvl.levelNumber;
+                    
+                    return (
+                      <div 
+                        key={lvl.levelNumber}
+                        className={`border rounded-xl p-5 flex flex-col justify-between transition-all duration-300 relative overflow-hidden h-full ${
+                          isActive
+                            ? "border-2 border-[#ff007f] bg-[#150d3a] shadow-[0_0_18px_rgba(255,0,127,0.3)] scale-[1.02]"
+                            : isUnlocked
+                              ? "border-emerald-500/40 bg-[#0c2417]/40 hover:border-emerald-500/80"
+                              : "border-zinc-800/80 bg-zinc-950/40 opacity-60"
+                        }`}
                       >
-                        <div className="flex items-center gap-3 z-10">
-                          <span className="w-8 h-8 rounded-full border border-[#ff007f]/30 bg-[#150d3a] flex items-center justify-center text-lg shadow-sm">
-                            {p.avatar}
-                          </span>
-                          <div>
-                            <span className="font-sans font-bold text-xs uppercase tracking-wider block text-white">
-                              {p.name}
+                        {/* active level banner glow */}
+                        {isActive && (
+                          <div className="absolute top-0 right-0 bg-[#ff007f] text-white text-[8px] uppercase tracking-widest font-sans font-black px-2 py-0.5 rounded-bl shadow-sm">
+                            Current Target
+                          </div>
+                        )}
+
+                        <div>
+                          <div className="flex items-center justify-between mb-3 border-b border-[#ff007f]/10 pb-1.5">
+                            <span className="text-[10px] uppercase font-mono tracking-widest text-[#00f0ff] font-extrabold">
+                              STAGE {lvl.levelNumber}
                             </span>
-                            <span className="text-[9px] font-mono uppercase text-[#00f0ff]">
-                              {p.isComputer ? "Automated AI" : `Player ${idx + 1}`}
+                            <span className="text-xs">
+                              {lvl.levelNumber === 1 ? "🦁" : lvl.levelNumber === 2 ? "🐼" : lvl.levelNumber === 3 ? "🦊" : lvl.levelNumber === 4 ? "🦅" : "👑"}
                             </span>
+                          </div>
+
+                          <h4 className="text-base font-sans font-black text-white leading-tight uppercase mb-2">
+                            {lvl.name}
+                          </h4>
+
+                          <p className="text-[11px] text-zinc-400 leading-normal font-sans mb-4 min-h-[50px]">
+                            {lvl.description}
+                          </p>
+
+                          {/* stage criteria */}
+                          <div className="space-y-1 bg-[#10072b]/60 p-2.5 rounded border border-[#ff007f]/10 font-mono text-[10px] mb-4">
+                            <div className="flex justify-between">
+                              <span className="text-zinc-400">Target Score:</span>
+                              <span className="text-white font-bold">{lvl.targetScore} PTS</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-zinc-400">Turn Timer:</span>
+                              <span className="text-white font-bold">{lvl.timeLimitSec}s</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-zinc-400">❌ Obstacles:</span>
+                              <span className="text-white font-bold">{lvl.obstaclesCount}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-zinc-400">AI Difficulty:</span>
+                              <span className="text-[#00f0ff] uppercase font-bold">{lvl.aiDifficulty}</span>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 z-10">
-                          <span
-                            className="w-4 h-4 rounded-full border border-black/50"
-                            style={{ backgroundColor: p.color }}
-                          />
-                          {!p.isComputer && players.length > 2 && (
-                            <button
-                              onClick={() => handleRemovePlayer(p.id)}
-                              className="p-1 hover:bg-[#ff007f]/10 text-zinc-400 hover:text-[#ff007f] rounded transition-colors"
-                              title="Delete Player"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+                        <div>
+                          <button
+                            onClick={() => {
+                              setLevelMode(true);
+                              setCurrentLevel(lvl.levelNumber);
+                              startGame(lvl.levelNumber);
+                            }}
+                            className={`w-full py-2.5 text-[11px] font-sans font-extrabold uppercase tracking-widest rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer ${
+                              isActive
+                                ? "bg-gradient-to-r from-[#ff007f] via-[#9d00ff] to-[#00f0ff] text-white shadow-[0_0_10px_#ff007f] hover:brightness-110"
+                                : isUnlocked
+                                  ? "bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30"
+                                  : "bg-zinc-900 text-zinc-500 border border-zinc-800 cursor-not-allowed"
+                            }`}
+                          >
+                            <Play className="w-3.5 h-3.5" /> Start Level {lvl.levelNumber}
+                          </button>
                         </div>
-
-                        <div
-                          className="absolute left-0 top-0 bottom-0 w-1"
-                          style={{ backgroundColor: p.color }}
-                        />
                       </div>
-                    ))}
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Setup and Rules Description */}
+                <div className="lg:col-span-7 flex flex-col gap-6">
+                  
+                  {/* Introduction Banner */}
+                  <div className="border-2 border-[#ff007f]/40 bg-[#150d3a]/60 p-6 md:p-8 rounded-xl backdrop-blur shadow-[0_0_15px_rgba(255,0,127,0.15)]">
+                    <h2 className="text-2xl md:text-3xl font-black mb-3 italic tracking-tight gradient-text-lobby">
+                      Welcome to {gameTitle}.
+                    </h2>
+                    <p className="text-sm md:text-base leading-relaxed text-zinc-300 mb-6 font-sans">
+                      {gameTitle} is a grid-based tactile spelling game where you can place letters 
+                      <strong className="text-[#00f0ff]"> anywhere on an empty board</strong> of boxes. Start a letter at any slot, 
+                      then select adjacent boxes to form, extend, or merge English words! 
+                    </p>
+
+                    {/* Grid-based Rules Details */}
+                    <div className="border-t border-[#ff007f]/20 pt-4">
+                      <h3 className="text-xs uppercase font-sans tracking-[0.2em] font-extrabold mb-3 text-[#ff007f] flex items-center gap-1.5">
+                        <Info className="w-4 h-4" /> Strategic Guidelines
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="border-l-2 border-[#00f0ff]/50 pl-3">
+                          <h4 className="text-xs font-sans font-bold uppercase mb-1 text-[#00f0ff]">
+                            1. Start Anywhere
+                          </h4>
+                          <p className="text-xs text-zinc-400 leading-normal">
+                            Click any empty box in the grid to place your starting letter. No preset starting sequence!
+                          </p>
+                        </div>
+                        <div className="border-l-2 border-[#00f0ff]/50 pl-3">
+                          <h4 className="text-xs font-sans font-bold uppercase mb-1 text-[#00f0ff]">
+                            2. Connect and Extend
+                          </h4>
+                          <p className="text-xs text-zinc-400 leading-normal">
+                            Build words by placing letters in empty boxes. Points are awarded when contiguous non-empty letters contain a valid English word of 3+ letters.
+                          </p>
+                        </div>
+                        <div className="border-l-2 border-[#ff007f]/50 pl-3">
+                          <h4 className="text-xs font-sans font-bold uppercase mb-1 text-[#ff007f]">
+                            3. Suffix Prevention Rule
+                          </h4>
+                          <p className="text-xs text-zinc-400 leading-normal">
+                            Appending common suffixes (S, ES, ED, ING, ER, EST, LY) to an already scored completed word yields 0 points. Focus on genuine word building!
+                          </p>
+                        </div>
+                        <div className="border-l-2 border-[#f0b90b]/50 pl-3">
+                          <h4 className="text-xs font-sans font-bold uppercase mb-1 text-[#f0b90b]">
+                            4. Adaptive AI Opponent
+                          </h4>
+                          <p className="text-xs text-zinc-400 leading-normal">
+                            Our Gemini-powered AI intelligently analyzes empty boxes and places tactical characters to score points or block your paths!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Match Configuration */}
+                  <div className="border border-[#ff007f]/30 bg-[#150d3a]/50 p-6 rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
+                    <h3 className="text-xs uppercase tracking-widest font-sans font-bold border-b border-[#ff007f]/20 pb-2 mb-4 text-[#ff007f]">
+                      Arena Settings
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      {/* Select Mode */}
+                      <div>
+                        <label className="block text-xs uppercase tracking-wider font-sans font-bold mb-2 text-zinc-300">
+                          Game Mode
+                        </label>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => { setMode("computer"); playSound("click"); }}
+                            className={`px-3 py-2 border text-left flex items-center justify-between text-xs font-sans font-bold uppercase tracking-wider transition-all rounded ${
+                              mode === "computer"
+                                ? "bg-gradient-to-r from-[#ff007f] to-[#9d00ff] text-white border-transparent shadow-[0_0_8px_rgba(255,0,127,0.4)]"
+                                : "bg-[#1c123c]/60 text-zinc-300 border-[#ff007f]/20 hover:border-[#ff007f]"
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> Vs AI</span>
+                            {mode === "computer" && <Check className="w-3 h-3 text-white" />}
+                          </button>
+                          <button
+                            onClick={() => { setMode("pvp"); playSound("click"); }}
+                            className={`px-3 py-2 border text-left flex items-center justify-between text-xs font-sans font-bold uppercase tracking-wider transition-all rounded ${
+                              mode === "pvp"
+                                ? "bg-gradient-to-r from-[#ff007f] to-[#9d00ff] text-white border-transparent shadow-[0_0_8px_rgba(255,0,127,0.4)]"
+                                : "bg-[#1c123c]/60 text-zinc-300 border-[#ff007f]/20 hover:border-[#ff007f]"
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> 1v1 Duel</span>
+                            {mode === "pvp" && <Check className="w-3 h-3 text-white" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Board Size selection */}
+                      <div>
+                        <label className="block text-xs uppercase tracking-wider font-sans font-bold mb-2 text-[#ff007f]">
+                          Vice Grid Edition
+                        </label>
+                        <div className="bg-[#1c123c]/80 text-white p-3 border border-[#ff007f]/40 rounded font-sans shadow-sm">
+                          <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#00f0ff] block mb-1 animate-pulse">
+                            Capacity Expanded
+                          </span>
+                          <p className="text-[11px] font-medium leading-snug text-zinc-300">
+                            1000 Empty Squares (40x25 Grid). Build words anywhere!
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* AI Difficulty */}
+                      <div>
+                        <label className="block text-xs uppercase tracking-wider font-sans font-bold mb-2 text-zinc-300">
+                          AI Tier
+                        </label>
+                        <div className="flex flex-col gap-2">
+                          {(["easy", "medium", "hard"] as Difficulty[]).map((level) => (
+                            <button
+                              key={level}
+                              disabled={mode !== "computer"}
+                              onClick={() => { setDifficulty(level); playSound("click"); }}
+                              className={`px-3 py-1.5 border text-left flex items-center justify-between text-xs font-sans font-bold uppercase tracking-wider transition-all rounded disabled:opacity-45 disabled:cursor-not-allowed ${
+                                difficulty === level && mode === "computer"
+                                  ? "bg-white text-[#150d3a] border-transparent font-black"
+                                  : "bg-[#1c123c]/60 text-zinc-300 border-zinc-700/50 hover:border-[#ff007f]/50"
+                              }`}
+                            >
+                              <span>{level}</span>
+                              {difficulty === level && mode === "computer" && <span className="w-1.5 h-1.5 rounded-full bg-[#ff007f] shadow-[0_0_6px_#ff007f]" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Turn Timer Limits */}
+                      <div>
+                        <label className="block text-xs uppercase tracking-wider font-sans font-bold mb-2 text-zinc-300">
+                          Turn Timer
+                        </label>
+                        <div className="flex flex-col gap-2">
+                          {[15, 30, 45, 0].map((sec) => (
+                            <button
+                              key={sec}
+                              onClick={() => { setTimeLimitSec(sec); playSound("click"); }}
+                              className={`px-3 py-1.5 border text-left flex items-center justify-between text-xs font-mono font-bold transition-all rounded ${
+                                timeLimitSec === sec
+                                  ? "bg-[#ff007f] text-white border-transparent shadow-[0_0_6px_#ff007f]"
+                                  : "bg-[#1c123c]/60 text-zinc-300 border-[#ff007f]/10 hover:border-[#ff007f]/30"
+                              }`}
+                            >
+                              <span>{sec === 0 ? "Infinite" : `${sec}s`}</span>
+                              {timeLimitSec === sec && <Clock className="w-3 h-3 text-white" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="pt-6">
-                  <button
-                    onClick={startGame}
-                    className="w-full py-4 bg-gradient-to-r from-[#ff007f] via-[#9d00ff] to-[#00f0ff] hover:brightness-110 text-white font-sans font-black text-sm uppercase tracking-[0.2em] transition-all duration-200 rounded-lg shadow-[0_0_15px_rgba(255,0,127,0.45)] hover:shadow-[0_0_25px_rgba(0,240,255,0.6)] flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Play className="w-4 h-4 text-white" /> Forge Board Match
-                  </button>
+                {/* Players Registration and Match start */}
+                <div className="lg:col-span-5 flex flex-col gap-6">
+                  <div className="border border-[#ff007f]/30 bg-[#150d3a]/50 p-6 rounded-xl flex-1 flex flex-col justify-between shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
+                    <div>
+                      <h3 className="text-xs uppercase tracking-widest font-sans font-bold border-b border-[#ff007f]/20 pb-2 mb-4 flex items-center justify-between text-[#00f0ff]">
+                        <span>Active Players ({players.length})</span>
+                        <span className="text-[10px] bg-[#ff007f]/10 text-[#ff007f] border border-[#ff007f]/20 px-2 py-0.5 rounded font-mono uppercase font-bold">
+                          Vice Edition
+                        </span>
+                      </h3>
+
+                      {/* Player List */}
+                      <div className="space-y-3 mb-6 max-h-[250px] overflow-y-auto pr-1">
+                        {players.map((p, idx) => (
+                          <div
+                            key={p.id}
+                            className="flex items-center justify-between p-3 border border-[#ff007f]/20 bg-[#1c123c]/60 rounded-lg relative overflow-hidden"
+                          >
+                            <div className="flex items-center gap-3 z-10">
+                              <span className="w-8 h-8 rounded-full border border-[#ff007f]/30 bg-[#150d3a] flex items-center justify-center text-lg shadow-sm">
+                                {p.avatar}
+                              </span>
+                              <div>
+                                <span className="font-sans font-bold text-xs uppercase tracking-wider block text-white">
+                                  {p.name}
+                                </span>
+                                <span className="text-[9px] font-mono uppercase text-[#00f0ff]">
+                                  {p.isComputer ? "Automated AI" : `Player ${idx + 1}`}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 z-10">
+                              <span
+                                className="w-4 h-4 rounded-full border border-black/50"
+                                style={{ backgroundColor: p.color }}
+                              />
+                              {!p.isComputer && players.length > 2 && (
+                                <button
+                                  onClick={() => handleRemovePlayer(p.id)}
+                                  className="p-1 hover:bg-[#ff007f]/10 text-zinc-400 hover:text-[#ff007f] rounded transition-colors"
+                                  title="Delete Player"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+
+                            <div
+                              className="absolute left-0 top-0 bottom-0 w-1"
+                              style={{ backgroundColor: p.color }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-6">
+                      <button
+                        onClick={() => startGame()}
+                        className="w-full py-4 bg-gradient-to-r from-[#ff007f] via-[#9d00ff] to-[#00f0ff] hover:brightness-110 text-white font-sans font-black text-sm uppercase tracking-[0.2em] transition-all duration-200 rounded-lg shadow-[0_0_15px_rgba(255,0,127,0.45)] hover:shadow-[0_0_25px_rgba(0,240,255,0.6)] flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Play className="w-4 h-4 text-white" /> Forge Board Match
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         )}
 
