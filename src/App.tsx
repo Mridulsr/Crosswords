@@ -18,6 +18,7 @@ import {
   fetchAIHints,
   fetchGeminiStatus,
 } from "./utils/apiService";
+import { getOfflineWord } from "./utils/offlineDictionary";
 import DictionaryChecker from "./components/DictionaryChecker";
 import {
   Sparkles,
@@ -134,6 +135,68 @@ function checkSuffixRule(word: string, alreadyPlayed: string[]): { base: string;
     }
   }
   return null;
+}
+
+export const LEVELS = [
+  {
+    levelNumber: 1,
+    name: "Novice Smith",
+    targetScore: 15,
+    timeLimitSec: 45,
+    obstaclesCount: 0,
+    aiDifficulty: "easy" as const,
+    description: "Learn the ropes! Place letters adjacent to form simple 3-letter words and score 15 points to advance."
+  },
+  {
+    levelNumber: 2,
+    name: "Iron Apprentice",
+    targetScore: 30,
+    timeLimitSec: 30,
+    obstaclesCount: 10,
+    aiDifficulty: "medium" as const,
+    description: "Slightly tougher! The board now has 10 rusty obstacle nodes (unusable blocks). Score 30 points to advance."
+  },
+  {
+    levelNumber: 3,
+    name: "Bronze Journeyman",
+    targetScore: 45,
+    timeLimitSec: 20,
+    obstaclesCount: 25,
+    aiDifficulty: "medium" as const,
+    description: "Fast and tactical! 25 grid cells are blocked, and you only have 20 seconds per turn. Score 45 points."
+  },
+  {
+    levelNumber: 4,
+    name: "Silver Master",
+    targetScore: 60,
+    timeLimitSec: 15,
+    obstaclesCount: 40,
+    aiDifficulty: "hard" as const,
+    description: "Hard mode! The AI is extremely tactical, 40 cells are blocked, and you have 15s per turn. Score 60 points."
+  },
+  {
+    levelNumber: 5,
+    name: "Gold Overlord",
+    targetScore: 80,
+    timeLimitSec: 10,
+    obstaclesCount: 60,
+    aiDifficulty: "hard" as const,
+    description: "The ultimate challenge! 60 grid cells are blocked, 10-second lightning timer, and tough AI. Score 80 points to win!"
+  }
+];
+
+export function isCussWord(word: string): boolean {
+  const w = word.trim().toLowerCase();
+  const cussList = [
+    "fuck", "fucking", "fucked", "fucekd", "fucks", "fucker", "fuckers", "fuckin",
+    "cum", "cums", "cumming", "cummed",
+    "sex", "sexy", "sexes", "sexiest", "sexing",
+    "bitch", "bitches", "bitching", "bastard", "bastards",
+    "ass", "asshole", "assholes", "asses",
+    "cunt", "cunts", "dick", "dicks", "pussy", "pussies",
+    "vagina", "vaginas", "penis", "penises", "horny", "hornier", "horniest"
+  ];
+  return cussList.some(cuss => w === cuss || w.includes(cuss));
 }
 
 export default function App() {
@@ -264,6 +327,11 @@ export default function App() {
   const [ruleAlert, setRuleAlert] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>("Select any box on the board to place your first letter!");
 
+  // --- Campaign Level Mode ---
+  const [levelMode, setLevelMode] = useState<boolean>(true);
+  const [currentLevel, setCurrentLevel] = useState<number>(1);
+  const [smartCompletions, setSmartCompletions] = useState<{ letter: string; word: string; points: number; isHoriz: boolean }[]>([]);
+
   // AI Hint status
   const [aiHints, setAiHints] = useState<HintSuggestion[]>([]);
   const [fetchingHints, setFetchingHints] = useState(false);
@@ -316,18 +384,18 @@ export default function App() {
 
   // Re-calculate the horizontal contiguous word containing the selected index in a 40x25 grid
   const getHorizontalBlock = (tempBoard: (string | null)[], index: number) => {
-    if (index < 0 || index >= tempBoard.length || tempBoard[index] === null) {
+    if (index < 0 || index >= tempBoard.length || tempBoard[index] === null || tempBoard[index] === "❌") {
       return { word: "", indices: [] as number[] };
     }
     const r = Math.floor(index / 40);
     const c = index % 40;
 
     let left = c;
-    while (left > 0 && tempBoard[r * 40 + (left - 1)] !== null) {
+    while (left > 0 && tempBoard[r * 40 + (left - 1)] !== null && tempBoard[r * 40 + (left - 1)] !== "❌") {
       left--;
     }
     let right = c;
-    while (right < 39 && tempBoard[r * 40 + (right + 1)] !== null) {
+    while (right < 39 && tempBoard[r * 40 + (right + 1)] !== null && tempBoard[r * 40 + (right + 1)] !== "❌") {
       right++;
     }
 
@@ -343,18 +411,18 @@ export default function App() {
 
   // Re-calculate the vertical contiguous word containing the selected index in a 40x25 grid
   const getVerticalBlock = (tempBoard: (string | null)[], index: number) => {
-    if (index < 0 || index >= tempBoard.length || tempBoard[index] === null) {
+    if (index < 0 || index >= tempBoard.length || tempBoard[index] === null || tempBoard[index] === "❌") {
       return { word: "", indices: [] as number[] };
     }
     const r = Math.floor(index / 40);
     const c = index % 40;
 
     let up = r;
-    while (up > 0 && tempBoard[(up - 1) * 40 + c] !== null) {
+    while (up > 0 && tempBoard[(up - 1) * 40 + c] !== null && tempBoard[(up - 1) * 40 + c] !== "❌") {
       up--;
     }
     let down = r;
-    while (down < 24 && tempBoard[(down + 1) * 40 + c] !== null) {
+    while (down < 24 && tempBoard[(down + 1) * 40 + c] !== null && tempBoard[(down + 1) * 40 + c] !== "❌") {
       down++;
     }
 
@@ -451,9 +519,100 @@ export default function App() {
     };
   }, [board, alreadyPlayedWords]);
 
+  // Dynamically analyze smart completions for the currently selected box
+  useEffect(() => {
+    if (selectedBoxIdx === null || gameState !== "playing") {
+      setSmartCompletions([]);
+      return;
+    }
+
+    const analyzeCompletions = () => {
+      const completionsList: { letter: string; word: string; points: number; isHoriz: boolean }[] = [];
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+      for (const char of alphabet) {
+        // Place letter in simulated board
+        const temp = [...board];
+        temp[selectedBoxIdx] = char;
+
+        const horiz = getHorizontalBlock(temp, selectedBoxIdx);
+        const vert = getVerticalBlock(temp, selectedBoxIdx);
+
+        if (horiz.word.length >= 3) {
+          const cleanH = horiz.word.toLowerCase();
+          const match = getOfflineWord(cleanH);
+          if (match && match.isValid && !isCussWord(cleanH)) {
+            completionsList.push({
+              letter: char,
+              word: horiz.word,
+              points: horiz.word.length,
+              isHoriz: true
+            });
+            continue;
+          }
+          // Check reverse
+          const cleanHRev = cleanH.split("").reverse().join("");
+          const matchRev = getOfflineWord(cleanHRev);
+          if (matchRev && matchRev.isValid && !isCussWord(cleanHRev)) {
+            completionsList.push({
+              letter: char,
+              word: horiz.word + " (Rev)",
+              points: horiz.word.length,
+              isHoriz: true
+            });
+            continue;
+          }
+        }
+
+        if (vert.word.length >= 3) {
+          const cleanV = vert.word.toLowerCase();
+          const match = getOfflineWord(cleanV);
+          if (match && match.isValid && !isCussWord(cleanV)) {
+            completionsList.push({
+              letter: char,
+              word: vert.word,
+              points: vert.word.length,
+              isHoriz: false
+            });
+            continue;
+          }
+          // Check reverse
+          const cleanVRev = cleanV.split("").reverse().join("");
+          const matchRev = getOfflineWord(cleanVRev);
+          if (matchRev && matchRev.isValid && !isCussWord(cleanVRev)) {
+            completionsList.push({
+              letter: char,
+              word: vert.word + " (Rev)",
+              points: vert.word.length,
+              isHoriz: false
+            });
+            continue;
+          }
+        }
+      }
+
+      // Sort by points descending
+      completionsList.sort((a, b) => b.points - a.points);
+      // Remove duplicate letters (keep highest scoring)
+      const uniqueCompletions: typeof completionsList = [];
+      const seenLetters = new Set<string>();
+      for (const comp of completionsList) {
+        if (!seenLetters.has(comp.letter)) {
+          seenLetters.add(comp.letter);
+          uniqueCompletions.push(comp);
+        }
+      }
+
+      setSmartCompletions(uniqueCompletions.slice(0, 5)); // Keep top 5 completions
+    };
+
+    analyzeCompletions();
+  }, [selectedBoxIdx, board, gameState]);
+
   // Keep latest refs of selected states to ensure the auto-timer interval never has stale closures
   const selectedBoxIdxRef = useRef<number | null>(null);
   const selectedLetterRef = useRef<string | null>(null);
+  const smartCompletionsRef = useRef(smartCompletions);
 
   useEffect(() => {
     selectedBoxIdxRef.current = selectedBoxIdx;
@@ -462,6 +621,10 @@ export default function App() {
   useEffect(() => {
     selectedLetterRef.current = selectedLetter;
   }, [selectedLetter]);
+
+  useEffect(() => {
+    smartCompletionsRef.current = smartCompletions;
+  }, [smartCompletions]);
 
   // Automatically submit 5 seconds after choosing a letter
   useEffect(() => {
@@ -484,8 +647,19 @@ export default function App() {
           if (prev <= 0.1) {
             clearInterval(interval);
             setTimeout(() => {
-              if (selectedBoxIdxRef.current !== null && selectedLetterRef.current !== null) {
-                executeMoveForPlayer(selectedBoxIdxRef.current, selectedLetterRef.current, false);
+              if (selectedBoxIdxRef.current !== null) {
+                let letterToSubmit = selectedLetterRef.current || "";
+                
+                // If we have a smart autocomplete completion, use it!
+                if (smartCompletionsRef.current && smartCompletionsRef.current.length > 0) {
+                  const topComp = smartCompletionsRef.current[0];
+                  letterToSubmit = topComp.letter;
+                  console.log(`Auto-submitting with smart completion: ${letterToSubmit} for word ${topComp.word}`);
+                }
+                
+                if (letterToSubmit) {
+                  executeMoveForPlayer(selectedBoxIdxRef.current, letterToSubmit, false);
+                }
               }
             }, 0);
             return null;
@@ -637,12 +811,26 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [gameState, selectedBoxIdx, board, currentPlayerIdx, players, selectedLetter]);
 
+  const handleNextLevel = () => {
+    playSound("success");
+    const nextLvl = currentLevel + 1;
+    setCurrentLevel(nextLvl);
+    startGame(nextLvl);
+  };
+
   // Initialize/Reset Game variables
-  const startGame = () => {
+  const startGame = (forcedLevel?: number) => {
     playSound("success");
 
     let initialPlayers: Player[] = [];
-    if (mode === "computer") {
+    let currentTimeLimit = timeLimitSec;
+    let finalBoardSize = boardSize;
+    const activeLevelIndex = forcedLevel !== undefined ? forcedLevel : currentLevel;
+
+    if (levelMode) {
+      const levelConfig = LEVELS[activeLevelIndex - 1] || LEVELS[0];
+      currentTimeLimit = levelConfig.timeLimitSec;
+      
       initialPlayers = [
         players[0] || {
           id: "p1",
@@ -657,7 +845,7 @@ export default function App() {
         },
         {
           id: "computer",
-          name: difficulty === "easy" ? "Lexi-Bot AI (Easy)" : difficulty === "medium" ? "Lexi-Bot AI (Med)" : "Lexi-Bot AI (Pro)",
+          name: `Lexi-Bot AI (${levelConfig.name})`,
           color: COLORS[4].value,
           avatar: "🤖",
           score: 0,
@@ -667,77 +855,148 @@ export default function App() {
           wordsFormed: [],
         }
       ];
-    } else if (mode === "pvp") {
-      initialPlayers = [
-        {
-          id: "p1",
-          name: players[0]?.name || "Challenger A",
-          color: COLORS[0].value,
-          avatar: players[0]?.avatar || "🦁",
-          score: 0,
-          isComputer: false,
-          totalTurnTime: 0,
-          movesCount: 0,
-          wordsFormed: [],
-        },
-        {
-          id: "p2",
-          name: "Challenger B",
-          color: COLORS[2].value,
-          avatar: "🦊",
-          score: 0,
-          isComputer: false,
-          totalTurnTime: 0,
-          movesCount: 0,
-          wordsFormed: [],
-        }
-      ];
     } else {
-      const humans = players.filter(p => !p.isComputer);
-      if (humans.length < 2) {
+      if (mode === "computer") {
         initialPlayers = [
-          { id: "p1", name: "Player 1", color: COLORS[0].value, avatar: "🦁", score: 0, isComputer: false, totalTurnTime: 0, movesCount: 0, wordsFormed: [] },
-          { id: "p2", name: "Player 2", color: COLORS[1].value, avatar: "🐼", score: 0, isComputer: false, totalTurnTime: 0, movesCount: 0, wordsFormed: [] }
+          players[0] || {
+            id: "p1",
+            name: "Player One",
+            color: COLORS[1].value,
+            avatar: "🦁",
+            score: 0,
+            isComputer: false,
+            totalTurnTime: 0,
+            movesCount: 0,
+            wordsFormed: [],
+          },
+          {
+            id: "computer",
+            name: difficulty === "easy" ? "Lexi-Bot AI (Easy)" : difficulty === "medium" ? "Lexi-Bot AI (Med)" : "Lexi-Bot AI (Pro)",
+            color: COLORS[4].value,
+            avatar: "🤖",
+            score: 0,
+            isComputer: true,
+            totalTurnTime: 0,
+            movesCount: 0,
+            wordsFormed: [],
+          }
+        ];
+      } else if (mode === "pvp") {
+        initialPlayers = [
+          {
+            id: "p1",
+            name: players[0]?.name || "Challenger A",
+            color: COLORS[0].value,
+            avatar: players[0]?.avatar || "🦁",
+            score: 0,
+            isComputer: false,
+            totalTurnTime: 0,
+            movesCount: 0,
+            wordsFormed: [],
+          },
+          {
+            id: "p2",
+            name: "Challenger B",
+            color: COLORS[2].value,
+            avatar: "🦊",
+            score: 0,
+            isComputer: false,
+            totalTurnTime: 0,
+            movesCount: 0,
+            wordsFormed: [],
+          }
         ];
       } else {
-        initialPlayers = humans.map(p => ({ ...p, score: 0, totalTurnTime: 0, movesCount: 0, wordsFormed: [] }));
+        const humans = players.filter(p => !p.isComputer);
+        if (humans.length < 2) {
+          initialPlayers = [
+            { id: "p1", name: "Player 1", color: COLORS[0].value, avatar: "🦁", score: 0, isComputer: false, totalTurnTime: 0, movesCount: 0, wordsFormed: [] },
+            { id: "p2", name: "Player 2", color: COLORS[1].value, avatar: "🐼", score: 0, isComputer: false, totalTurnTime: 0, movesCount: 0, wordsFormed: [] }
+          ];
+        } else {
+          initialPlayers = humans.map(p => ({ ...p, score: 0, totalTurnTime: 0, movesCount: 0, wordsFormed: [] }));
+        }
       }
     }
 
     setPlayers(initialPlayers);
-    setBoard(Array(boardSize).fill(null));
+
+    // Grid construction with obstacles if levelMode is active
+    const initialBoard = Array(finalBoardSize).fill(null);
+    if (levelMode) {
+      const levelConfig = LEVELS[activeLevelIndex - 1] || LEVELS[0];
+      const count = levelConfig.obstaclesCount;
+      const blockedSet = new Set<number>();
+      
+      const center = 500;
+      const excluded = new Set<number>([
+        center, center - 1, center + 1,
+        center - 40, center - 41, center - 39,
+        center + 40, center + 41, center + 39
+      ]);
+
+      while (blockedSet.size < count) {
+        const idx = Math.floor(Math.random() * finalBoardSize);
+        if (!excluded.has(idx)) {
+          blockedSet.add(idx);
+        }
+      }
+
+      blockedSet.forEach(idx => {
+        initialBoard[idx] = "❌";
+      });
+    }
+
+    setBoard(initialBoard);
     setSelectedBoxIdx(null);
     setSelectedLetter(null);
     setAlreadyPlayedWords([]);
     setMoveLogs([]);
     setErrorMessage(null);
     setRuleAlert(null);
-    setStatusMessage("The board is completely empty! Select any box to place your starting letter.");
+    
+    if (levelMode) {
+      const levelConfig = LEVELS[activeLevelIndex - 1] || LEVELS[0];
+      setStatusMessage(`🎮 Campaign Level ${activeLevelIndex}: ${levelConfig.name}! Target score: ${levelConfig.targetScore} points. Avoid the ❌ rusty blocks!`);
+    } else {
+      setStatusMessage("The board is completely empty! Select any box to place your starting letter.");
+    }
     setAiThoughts(null);
     setAiHints([]);
 
     setCurrentPlayerIdx(0);
     setGameState("playing");
 
-    startTurnTimer();
+    // Start with the correct timer limit
+    startTurnTimerWithLimit(currentTimeLimit, initialPlayers, 0);
   };
 
-  // Turn Timer Loop
+  // Turn Timer Loop with custom parameters
   const startTurnTimer = (customRemainingMs?: number) => {
-    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-
     const activePlayer = players[currentPlayerIdx];
     const isComp = activePlayer?.isComputer;
+    let limit = timeLimitSec;
+    if (levelMode && !isComp) {
+      const levelConfig = LEVELS[currentLevel - 1] || LEVELS[0];
+      limit = levelConfig.timeLimitSec;
+    }
+    startTurnTimerWithLimit(limit, players, currentPlayerIdx, customRemainingMs);
+  };
 
-    // AI always gets exactly 5 seconds to respond.
+  const startTurnTimerWithLimit = (limitSec: number, currentPlayersList: Player[], playerIdx: number, customRemainingMs?: number) => {
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+
+    const activePlayer = currentPlayersList[playerIdx];
+    const isComp = activePlayer?.isComputer;
+
     // If it's a human player and time limit is 0, they get infinite time (timer not running).
-    if (!isComp && timeLimitSec === 0) {
+    if (!isComp && !levelMode && limitSec === 0) {
       setTurnTimerRunning(false);
       setTurnTimeLeftMs(0);
       return;
     }
 
-    const currentLimitSec = isComp ? 5 : timeLimitSec;
+    const currentLimitSec = isComp ? 5 : limitSec;
     const totalLimitMs = customRemainingMs !== undefined ? customRemainingMs : (currentLimitSec * 1000);
     const startTime = Date.now();
     setTurnStartTime(startTime);
@@ -1078,8 +1337,37 @@ export default function App() {
       return;
     }
 
+    // 1. CUSS WORD PROHIBITION CHECK
+    let formedCussWord = "";
+    for (const cand of [...hCandidates, ...vCandidates]) {
+      const wLower = cand.word.toLowerCase();
+      const wRevLower = cand.word.split("").reverse().join("").toLowerCase();
+      if (isCussWord(wLower)) {
+        formedCussWord = cand.word;
+        break;
+      }
+      if (isCussWord(wRevLower)) {
+        formedCussWord = cand.word.split("").reverse().join("");
+        break;
+      }
+    }
+
+    if (formedCussWord) {
+      playSound("error");
+      setRuleAlert(`⚠️ Profanity Blocked! Words like "${formedCussWord.toUpperCase()}" are prohibited.`);
+      setErrorMessage(`Profanity is strictly prohibited in LetterForge. Please choose a different letter.`);
+      
+      // Reset the auto-submit countdown and give mistake time
+      setAutoSubmitCountdown(null);
+      setTurnTimeLeftMs((prev) => prev + 15000); // add 15s
+      setSelectedBoxIdx(boxIndex);
+      setSelectedLetter(letter);
+      setStatusMessage(`Mistake corrected! Prohibited language blocked. Added +15 seconds of thinking time.`);
+      return;
+    }
+
     if (!hasHoriz && !hasVert) {
-      // Allow placing letter but scored 0 points
+      // Seeding move, scored 0 points
       playSound("click");
       setBoard(newBoard);
 
@@ -1112,38 +1400,63 @@ export default function App() {
     // Lookup and scoring
     setStatusMessage(`Verifying newly formed words on the chessboard...`);
     
-    let totalPointsEarned = 0;
-    const verifiedWords: string[] = [];
-    const rulesApplied: string[] = [];
-    let isAnyValid = false;
-
     // Helper to scan candidates and verify standard English words in parallel
     const getValidSubwordsForBlock = async (candidates: { word: string; indices: number[] }[]) => {
       const results = await Promise.all(
         candidates.map(async (candidate) => {
           const forwardVerify = await lookupWord(candidate.word);
-          if (forwardVerify.isValid) {
-            return { matchedWord: candidate.word, isReversed: false, indices: candidate.indices };
-          }
           const reversed = candidate.word.split("").reverse().join("");
           const reversedVerify = await lookupWord(reversed);
-          if (reversedVerify.isValid) {
-            return { matchedWord: reversed, isReversed: true, indices: candidate.indices };
+          
+          if (forwardVerify.isValid && reversedVerify.isValid) {
+            const isPalindrome = candidate.word === reversed;
+            return {
+              matchedWord: candidate.word,
+              isReversed: false,
+              indices: candidate.indices,
+              isPalindrome,
+              isBidirectional: !isPalindrome,
+              reversedWord: reversed
+            };
+          } else if (forwardVerify.isValid) {
+            return { matchedWord: candidate.word, isReversed: false, indices: candidate.indices, isPalindrome: false, isBidirectional: false };
+          } else if (reversedVerify.isValid) {
+            return { matchedWord: reversed, isReversed: true, indices: candidate.indices, isPalindrome: false, isBidirectional: false };
           }
           return null;
         })
       );
-      return results.filter((res): res is { matchedWord: string; isReversed: boolean; indices: number[] } => res !== null);
+      return results.filter((res): res is NonNullable<typeof res> => res !== null);
     };
 
     const validHSubwords = await getValidSubwordsForBlock(hCandidates);
     const validVSubwords = await getValidSubwordsForBlock(vCandidates);
 
+    const isAnyValid = (validHSubwords.length > 0 || validVSubwords.length > 0);
+
+    // 2. SPELLING MISTAKE CHECK: If they attempted to form words but NONE are valid, block and give mistake time!
+    if (!isAnyValid) {
+      playSound("error");
+      const attempted = [hasHoriz ? hWord : null, hasVert ? vWord : null].filter(Boolean).join(" / ");
+      setErrorMessage(`"${attempted}" is not recognized yet.`);
+      setRuleAlert(`⚠️ Spelling Mistake! "${attempted}" was not found in the dictionary.`);
+      
+      // Give them extra time
+      setAutoSubmitCountdown(null);
+      setTurnTimeLeftMs((prev) => prev + 10000); // add 10s
+      setSelectedBoxIdx(boxIndex);
+      setSelectedLetter(letter);
+      setStatusMessage(`Spelling Mistake! Added +10s of extra thinking time. Select a different letter to complete a valid word!`);
+      return;
+    }
+
+    let totalPointsEarned = 0;
+    const verifiedWords: string[] = [];
+    const rulesApplied: string[] = [];
+
     // Process horizontal sub-words
     for (const item of validHSubwords) {
       const matchedWord = item.matchedWord;
-      isAnyValid = true;
-
       const alreadyPlayed = alreadyPlayedWords.some(w => w.toLowerCase() === matchedWord.toLowerCase());
       let points = matchedWord.length;
 
@@ -1155,6 +1468,15 @@ export default function App() {
         if (suffixResult) {
           points = 0;
           rulesApplied.push(`Suffix Rule ("${suffixResult.suffix}" appended to "${suffixResult.base.toUpperCase()}")`);
+        } else {
+          // Double points for palindrome or bidirectional
+          if (item.isPalindrome) {
+            points = points * 2;
+            rulesApplied.push(`✨ Palindrome Bonus ("${matchedWord.toUpperCase()}" read backwards is the same! Double Points!)`);
+          } else if (item.isBidirectional) {
+            points = points * 2;
+            rulesApplied.push(`🔄 Bidirectional Combo ("${matchedWord.toUpperCase()}" & "${item.reversedWord?.toUpperCase()}" are both valid! Double Points!)`);
+          }
         }
       }
 
@@ -1167,8 +1489,6 @@ export default function App() {
     // Process vertical sub-words
     for (const item of validVSubwords) {
       const matchedWord = item.matchedWord;
-      isAnyValid = true;
-
       const alreadyPlayed = alreadyPlayedWords.some(w => w.toLowerCase() === matchedWord.toLowerCase());
       let points = matchedWord.length;
 
@@ -1180,6 +1500,15 @@ export default function App() {
         if (suffixResult) {
           points = 0;
           rulesApplied.push(`Suffix Rule ("${suffixResult.suffix}" appended to "${suffixResult.base.toUpperCase()}")`);
+        } else {
+          // Double points for palindrome or bidirectional
+          if (item.isPalindrome) {
+            points = points * 2;
+            rulesApplied.push(`✨ Palindrome Bonus ("${matchedWord.toUpperCase()}" read backwards is the same! Double Points!)`);
+          } else if (item.isBidirectional) {
+            points = points * 2;
+            rulesApplied.push(`🔄 Bidirectional Combo ("${matchedWord.toUpperCase()}" & "${item.reversedWord?.toUpperCase()}" are both valid! Double Points!)`);
+          }
         }
       }
 
@@ -1195,7 +1524,7 @@ export default function App() {
       playSound("success");
 
       if (rulesApplied.length > 0) {
-        setRuleAlert(`Rule triggered: Adding suffix extensions (like S, ES, ED, ING, ER, EST, LY) to already completed words on the chessboard is worth 0 points.`);
+        setRuleAlert(`Rule triggered: ${rulesApplied.join(", ")}`);
         playSound("rule");
       }
 
@@ -1212,6 +1541,30 @@ export default function App() {
         wordsFormed: [...activePlayer.wordsFormed, ...verifiedWords],
       };
       setPlayers(updatedPlayers);
+
+      if (levelMode) {
+        const levelConfig = LEVELS[currentLevel - 1] || LEVELS[0];
+        const humanPlayer = updatedPlayers.find(p => !p.isComputer);
+        const aiPlayer = updatedPlayers.find(p => p.isComputer);
+
+        if (humanPlayer && humanPlayer.score >= levelConfig.targetScore) {
+          playSound("success");
+          setGameState("gameover");
+          setAlreadyPlayedWords((prev) => [...prev, ...verifiedWords]);
+          setBoard(newBoard);
+          setStatusMessage(`🎉 CONGRATULATIONS! You reached the target score of ${levelConfig.targetScore} points and CLEARED LEVEL ${currentLevel} (${levelConfig.name})!`);
+          return;
+        }
+
+        if (aiPlayer && aiPlayer.score >= levelConfig.targetScore) {
+          playSound("error");
+          setGameState("gameover");
+          setAlreadyPlayedWords((prev) => [...prev, ...verifiedWords]);
+          setBoard(newBoard);
+          setStatusMessage(`❌ LEVEL FAILED! ${aiPlayer.name} reached the target score of ${levelConfig.targetScore} points before you did. Try again to claim victory!`);
+          return;
+        }
+      }
 
       // Log the move
       const newLog: MoveLog = {
@@ -1801,24 +2154,27 @@ export default function App() {
                           <button
                             key={idx}
                             onClick={() => {
+                              if (letter === "❌") return; // block clicking obstacles
                               setSelectedBoxIdx(idx);
                               setSelectedLetter(letter || null); // preset if filled
                               playSound("click");
                             }}
-                            className={`w-full ${sizeClasses} rounded border flex items-center justify-center select-none relative transition-all duration-150 cursor-pointer ${
-                              isSelected
-                                ? "bg-[#f0b90b] border-white scale-[1.08] z-10 shadow-[0_0_12px_#f0b90b] text-zinc-950 font-black"
+                            className={`w-full ${sizeClasses} rounded border flex items-center justify-center select-none relative transition-all duration-150 ${
+                              letter === "❌"
+                                ? "bg-red-950/20 border-red-900/50 text-red-500 cursor-not-allowed shadow-[inset_0_0_6px_rgba(239,68,68,0.2)]"
+                                : isSelected
+                                ? "bg-[#f0b90b] border-white scale-[1.08] z-10 shadow-[0_0_12px_#f0b90b] text-zinc-950 font-black cursor-pointer"
                                 : isPartOfPreview && previewIsValid
-                                ? "bg-emerald-500/30 border-emerald-400 text-white shadow-[0_0_8px_rgba(16,185,129,0.3)] font-bold"
+                                ? "bg-emerald-500/30 border-emerald-400 text-white shadow-[0_0_8px_rgba(16,185,129,0.3)] font-bold cursor-pointer"
                                 : isPartOfPreview
-                                ? "bg-amber-500/30 border-amber-400 text-white"
+                                ? "bg-amber-500/30 border-amber-400 text-white cursor-pointer"
                                 : completedCount >= 2
-                                ? "bg-[#00f0ff]/15 border-[#00f0ff]/40 text-cyan-200 font-extrabold shadow-[0_0_8px_rgba(0,240,255,0.25)] ring-1 ring-[#00f0ff]/20"
+                                ? "bg-[#00f0ff]/15 border-[#00f0ff]/40 text-cyan-200 font-extrabold shadow-[0_0_8px_rgba(0,240,255,0.25)] ring-1 ring-[#00f0ff]/20 cursor-pointer"
                                 : completedCount === 1
-                                ? "bg-[#ff007f]/15 border-[#ff007f]/30 text-pink-200 font-bold shadow-[0_0_6px_rgba(255,0,127,0.15)]"
+                                ? "bg-[#ff007f]/15 border-[#ff007f]/30 text-pink-200 font-bold shadow-[0_0_6px_rgba(255,0,127,0.15)] cursor-pointer"
                                 : letter !== null
-                                ? "bg-[#1c123c] text-white border-[#9d00ff]/50 font-bold"
-                                : "bg-[#1a113a]/40 hover:bg-[#ff007f]/10 border-[#ff007f]/10 text-[#00f0ff]/40"
+                                ? "bg-[#1c123c] text-white border-[#9d00ff]/50 font-bold cursor-pointer"
+                                : "bg-[#1a113a]/40 hover:bg-[#ff007f]/10 border-[#ff007f]/10 text-[#00f0ff]/40 cursor-pointer"
                             }`}
                             style={{ minWidth: 0, minHeight: 0 }}
                           >
@@ -2292,23 +2648,99 @@ export default function App() {
                 ))}
             </div>
 
-            <div className="flex gap-4 justify-center">
-              <button
-                onClick={() => {
-                  setGameState("lobby");
-                  playSound("success");
-                }}
-                className="px-6 py-3 border border-[#ff007f]/40 hover:border-[#ff007f] bg-[#1c123c] hover:bg-[#ff007f] text-white font-sans font-bold text-xs uppercase tracking-widest transition-all rounded-lg cursor-pointer"
-              >
-                Change Game Settings
-              </button>
-              <button
-                onClick={startGame}
-                className="px-6 py-3 bg-gradient-to-r from-[#ff007f] to-[#9d00ff] hover:brightness-110 text-white font-sans font-bold text-xs uppercase tracking-widest transition-all rounded-lg shadow-[0_0_10px_rgba(255,0,127,0.3)] cursor-pointer"
-              >
-                Rematch Arena
-              </button>
-            </div>
+            {levelMode ? (
+              (() => {
+                const levelConfig = LEVELS[currentLevel - 1] || LEVELS[0];
+                const humanPlayer = players.find(p => !p.isComputer);
+                const isCleared = humanPlayer && humanPlayer.score >= levelConfig.targetScore;
+                
+                return (
+                  <div className="flex flex-col gap-4 items-center">
+                    <div className="mb-4">
+                      {isCleared ? (
+                        <span className="text-sm uppercase font-sans tracking-[0.3em] bg-emerald-500 text-black px-4 py-1.5 font-black inline-block rounded shadow-[0_0_15px_rgba(16,185,129,0.5)]">
+                          🏆 LEVEL CLEARED
+                        </span>
+                      ) : (
+                        <span className="text-sm uppercase font-sans tracking-[0.3em] bg-rose-600 text-white px-4 py-1.5 font-black inline-block rounded shadow-[0_0_15px_rgba(225,29,72,0.5)]">
+                          ❌ LEVEL FAILED
+                        </span>
+                      )}
+                    </div>
+                    
+                    <p className="text-sm md:text-base font-medium max-w-md mx-auto mb-6 leading-relaxed">
+                      {isCleared 
+                        ? (currentLevel === LEVELS.length 
+                            ? "Splendid! You have triumphed over all campaign levels and earned the title of the Ultimate LetterForge Grandmaster!"
+                            : `Outstanding performance! You successfully surpassed the target of ${levelConfig.targetScore} points on Level ${currentLevel}.`
+                          )
+                        : `You scored ${humanPlayer?.score || 0} points, falling short of the Level ${currentLevel} target of ${levelConfig.targetScore} points. Keep forging!`
+                      }
+                    </p>
+
+                    <div className="flex flex-wrap gap-4 justify-center">
+                      <button
+                        onClick={() => {
+                          setGameState("lobby");
+                          playSound("click");
+                        }}
+                        className="px-6 py-3 border border-zinc-700 hover:border-white bg-[#1c123c] text-zinc-300 hover:text-white font-sans font-bold text-xs uppercase tracking-widest transition-all rounded-lg cursor-pointer"
+                      >
+                        Main Menu
+                      </button>
+                      
+                      {isCleared ? (
+                        currentLevel < LEVELS.length ? (
+                          <button
+                            onClick={handleNextLevel}
+                            className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-white font-sans font-black text-xs uppercase tracking-widest transition-all rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.4)] cursor-pointer"
+                          >
+                            Proceed to Level {currentLevel + 1}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setCurrentLevel(1);
+                              setTimeout(() => {
+                                startGame(1);
+                              }, 100);
+                            }}
+                            className="px-8 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-sans font-black text-xs uppercase tracking-widest transition-all rounded-lg shadow-[0_0_15px_rgba(245,158,11,0.4)] cursor-pointer"
+                          >
+                            Reset Campaign (Level 1)
+                          </button>
+                        )
+                      ) : (
+                        <button
+                          onClick={() => startGame()}
+                          className="px-8 py-3 bg-gradient-to-r from-[#ff007f] to-[#9d00ff] hover:brightness-110 text-white font-sans font-bold text-xs uppercase tracking-widest transition-all rounded-lg shadow-[0_0_15px_rgba(255,0,127,0.4)] cursor-pointer"
+                        >
+                          Retry Level {currentLevel}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => {
+                    setGameState("lobby");
+                    playSound("success");
+                  }}
+                  className="px-6 py-3 border border-[#ff007f]/40 hover:border-[#ff007f] bg-[#1c123c] hover:bg-[#ff007f] text-white font-sans font-bold text-xs uppercase tracking-widest transition-all rounded-lg cursor-pointer"
+                >
+                  Change Game Settings
+                </button>
+                <button
+                  onClick={() => startGame()}
+                  className="px-6 py-3 bg-gradient-to-r from-[#ff007f] to-[#9d00ff] hover:brightness-110 text-white font-sans font-bold text-xs uppercase tracking-widest transition-all rounded-lg shadow-[0_0_10px_rgba(255,0,127,0.3)] cursor-pointer"
+                >
+                  Rematch Arena
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -214,10 +214,34 @@ export const OFFLINE_DEFINITIONS: Record<string, { definition: string; partOfSpe
 
 export const FORBIDDEN_SHORT_FORMS = new Set(["tia", "tiap", "lop", "onl", "nonl", "nonlp", "enonlp", "ing", "tking"]);
 
+export function isCussWord(word: string): boolean {
+  const w = word.trim().toLowerCase();
+  const cussList = [
+    "fuck", "fucking", "fucked", "fucekd", "fucks", "fucker", "fuckers", "fuckin",
+    "cum", "cums", "cumming", "cummed",
+    "sex", "sexy", "sexes", "sexiest", "sexing",
+    "bitch", "bitches", "bitching", "bastard", "bastards",
+    "ass", "asshole", "assholes", "asses",
+    "cunt", "cunts", "dick", "dicks", "pussy", "pussies",
+    "vagina", "vaginas", "penis", "penises", "horny", "hornier", "horniest"
+  ];
+  return cussList.some(cuss => w === cuss || w.includes(cuss));
+}
+
 // Suffix rules analyzer to generate intelligent offline dictionary results
 export function getOfflineWord(word: string) {
   const clean = word.trim().toLowerCase();
   
+  if (isCussWord(clean)) {
+    return {
+      isValid: false,
+      word: clean,
+      partOfSpeech: "prohibited",
+      definition: "This word contains prohibited or inappropriate language.",
+      reason: "Profanity/inappropriate language is strictly prohibited."
+    };
+  }
+
   if (FORBIDDEN_SHORT_FORMS.has(clean)) {
     return {
       isValid: false,

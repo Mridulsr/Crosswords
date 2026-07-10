@@ -2,6 +2,16 @@ export type GameMode = "pvp" | "group" | "computer";
 export type Position = "start" | "end";
 export type Difficulty = "easy" | "medium" | "hard";
 
+export interface LevelConfig {
+  levelNumber: number;
+  name: string;
+  targetScore: number;
+  timeLimitSec: number;
+  obstaclesCount: number;
+  aiDifficulty: Difficulty;
+  description: string;
+}
+
 export interface Player {
   id: string;
   name: string;
