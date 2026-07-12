@@ -55,7 +55,21 @@ async function generateContentWithRetry(params: any, retries = 3, delayMs = 1000
       const isQuota = errStr.includes("429") || errStr.includes("quota") || errStr.includes("resource_exhausted") || errStr.includes("limit: 20") || errStr.includes("exhausted");
       if (isQuota) {
         isGeminiQuotaExceeded = true;
-        throw error; // Fail-fast so local fallbacks trigger instantly
+      }
+
+      // If the primary model failed, immediately try switching the model to "gemini-3.1-flash-lite" as a backup
+      if (params.model === "gemini-3.5-flash") {
+        console.warn(`[Gemini Failover] Primary model gemini-3.5-flash failed (attempt ${attempt}). Trying backup model gemini-3.1-flash-lite...`);
+        params.model = "gemini-3.1-flash-lite";
+        try {
+          const response = await ai.models.generateContent(params);
+          console.log(`[Gemini Failover Success] Backup model gemini-3.1-flash-lite succeeded.`);
+          return response;
+        } catch (backupError: any) {
+          console.error(`[Gemini Failover Failed] Backup model gemini-3.1-flash-lite also failed: ${backupError?.message || backupError}`);
+          // Revert the model parameter back to primary so future retries can run if appropriate
+          params.model = "gemini-3.5-flash";
+        }
       }
 
       const isTransient = errStr.includes("503") || errStr.includes("unavailable") || errStr.includes("service unavailable") || errStr.includes("demand") || errStr.includes("rate limit");
@@ -157,22 +171,21 @@ app.post("/api/dictionary/lookup", async (req, res) => {
       } else {
         console.warn(`[Gemini Lookup Fallback] Word lookup for "${cleanedWord}" fell back to local dictionary. Error: ${error?.message || error}`);
       }
+      return res.status(503).json({
+        error: "Gemini lookup failed. Forcing client public dictionary API fallback.",
+        word: cleanedWord,
+        reason: error?.message || String(error)
+      });
     }
   }
 
   // 4. Strict offline fallback check when Gemini is exhausted/rate-limited or offline.
-  // Instead of accepting any gibberish, we only accept words verified in our rich offline list.
-  const result = {
-    isValid: false,
+  // Instead of accepting any gibberish, we return 503 so the frontend can check the public English dictionary API.
+  return res.status(503).json({
+    error: "Gemini AI Client is not initialized. Forcing client public dictionary API fallback.",
     word: cleanedWord,
-    partOfSpeech: "",
-    definition: "Word unrecognized in offline dictionary mode.",
-    funFact: "",
-    reason: `In offline mode (due to Gemini quota limits), only standard dictionary words present in our verified list are recognized. Unofficial words like "${cleanedWord}" are not permitted.`
-  };
-
-  lookupCache.set(cleanedWord, result);
-  return res.json(result);
+    reason: "Gemini uninitialized"
+  });
 });
 
 // 2. AI Opponent Turn Generator Endpoint

@@ -33,6 +33,7 @@ import {
   AlertCircle,
   Trash2,
   User,
+  BookOpen,
   Info,
   Flame,
   ArrowDownCircle,
@@ -267,6 +268,7 @@ export default function App() {
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [timeLimitSec, setTimeLimitSec] = useState<number>(30); // 30s per turn by default
   const [boardSize, setBoardSize] = useState<number>(1000); // Default 1000 boxes empty chessboard
+  const [autoSubmitEnabled, setAutoSubmitEnabled] = useState<boolean>(false); // Disabled by default to prevent rushing
 
   // --- Players Setup ---
   const [players, setPlayers] = useState<Player[]>([
@@ -672,7 +674,7 @@ export default function App() {
     smartCompletionsRef.current = smartCompletions;
   }, [smartCompletions]);
 
-  // Automatically submit 5 seconds after choosing a letter
+  // Automatically submit 5 seconds after choosing a letter (optional setting)
   useEffect(() => {
     if (autoSubmitTimerRef.current) {
       clearInterval(autoSubmitTimerRef.current);
@@ -680,6 +682,7 @@ export default function App() {
     }
 
     if (
+      autoSubmitEnabled &&
       gameState === "playing" &&
       !isGamePaused &&
       !players[currentPlayerIdx].isComputer &&
@@ -694,14 +697,7 @@ export default function App() {
             clearInterval(interval);
             setTimeout(() => {
               if (selectedBoxIdxRef.current !== null) {
-                let letterToSubmit = selectedLetterRef.current || "";
-                
-                // If we have a smart autocomplete completion, use it!
-                if (smartCompletionsRef.current && smartCompletionsRef.current.length > 0) {
-                  const topComp = smartCompletionsRef.current[0];
-                  letterToSubmit = topComp.letter;
-                  console.log(`Auto-submitting with smart completion: ${letterToSubmit} for word ${topComp.word}`);
-                }
+                const letterToSubmit = selectedLetterRef.current || "";
                 
                 if (letterToSubmit) {
                   executeMoveForPlayer(selectedBoxIdxRef.current, letterToSubmit, false);
@@ -723,7 +719,7 @@ export default function App() {
         clearInterval(autoSubmitTimerRef.current);
       }
     };
-  }, [selectedBoxIdx, selectedLetter, currentPlayerIdx, gameState, players, isGamePaused]);
+  }, [selectedBoxIdx, selectedLetter, currentPlayerIdx, gameState, players, isGamePaused, autoSubmitEnabled]);
 
   // Run validation on preview of the word
   useEffect(() => {
@@ -878,11 +874,11 @@ export default function App() {
       currentTimeLimit = levelConfig.timeLimitSec;
       
       initialPlayers = [
-        players[0] || {
+        {
           id: "p1",
-          name: "Player One",
-          color: COLORS[1].value,
-          avatar: "🦁",
+          name: players[0]?.name || "Player One",
+          color: players[0]?.color || COLORS[1].value,
+          avatar: players[0]?.avatar || "🦁",
           score: 0,
           isComputer: false,
           totalTurnTime: 0,
@@ -891,7 +887,7 @@ export default function App() {
         },
         {
           id: "computer",
-          name: `Lexi-Bot AI (${levelConfig.name})`,
+          name: players[1]?.name || `Lexi-Bot AI (${levelConfig.name})`,
           color: COLORS[4].value,
           avatar: "🤖",
           score: 0,
@@ -904,11 +900,11 @@ export default function App() {
     } else {
       if (mode === "computer") {
         initialPlayers = [
-          players[0] || {
+          {
             id: "p1",
-            name: "Player One",
-            color: COLORS[1].value,
-            avatar: "🦁",
+            name: players[0]?.name || "Player One",
+            color: players[0]?.color || COLORS[1].value,
+            avatar: players[0]?.avatar || "🦁",
             score: 0,
             isComputer: false,
             totalTurnTime: 0,
@@ -917,7 +913,7 @@ export default function App() {
           },
           {
             id: "computer",
-            name: difficulty === "easy" ? "Lexi-Bot AI (Easy)" : difficulty === "medium" ? "Lexi-Bot AI (Med)" : "Lexi-Bot AI (Pro)",
+            name: players[1]?.name || (difficulty === "easy" ? "Lexi-Bot AI (Easy)" : difficulty === "medium" ? "Lexi-Bot AI (Med)" : "Lexi-Bot AI (Pro)"),
             color: COLORS[4].value,
             avatar: "🤖",
             score: 0,
@@ -1107,7 +1103,7 @@ export default function App() {
     }
   };
 
-  // Tab Visibility & Focus Event Listener to Pause and Resume Game Progress
+  // Tab Visibility Event Listener to Pause and Resume Game Progress when changing tabs
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -1117,22 +1113,10 @@ export default function App() {
       }
     };
 
-    const handleBlur = () => {
-      pauseGame();
-    };
-
-    const handleFocus = () => {
-      resumeGame();
-    };
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("focus", handleFocus);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("focus", handleFocus);
     };
   }, [gameState, currentPlayerIdx, players, isGamePaused, timeLimitSec]);
 
@@ -1869,6 +1853,180 @@ export default function App() {
               </div>
             </div>
 
+            {/* TOP PROFILE AND RULES HERO SECTION */}
+            <div className="col-span-12 grid grid-cols-1 md:grid-cols-12 gap-6 mb-2">
+              {/* CHAMPION IDENTITY REGISTRY CARD */}
+              <div className="md:col-span-5 border-2 border-[#ff007f]/40 bg-[#150d3a]/75 p-5 rounded-2xl shadow-[0_0_20px_rgba(255,0,127,0.15)] flex flex-col justify-between">
+                <div>
+                  <h3 className="text-sm font-sans font-black uppercase tracking-wider text-[#ff007f] mb-2 flex items-center gap-2">
+                    <User className="w-4 h-4 text-[#ff007f]" /> 👤 CHAMPION REGISTRY
+                  </h3>
+                  <p className="text-[11px] text-zinc-300 mb-4 font-sans leading-relaxed">
+                    Type your name and choose your preferred combat identity below to customize your board presence.
+                  </p>
+                  
+                  {/* Human Player Customization Form */}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[9px] uppercase tracking-wider font-mono font-bold text-zinc-400 mb-1">
+                        Your Dedicated Name
+                      </label>
+                      <input
+                        type="text"
+                        value={players[0]?.name || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPlayers(prev => {
+                            const copy = [...prev];
+                            if (copy[0]) {
+                              copy[0] = { ...copy[0], name: val };
+                            }
+                            return copy;
+                          });
+                        }}
+                        className="w-full bg-[#1c123c]/95 border border-[#ff007f]/30 focus:border-[#ff007f] focus:ring-1 focus:ring-[#ff007f] text-xs font-sans font-black uppercase tracking-wider text-white outline-none px-3 py-1.5 rounded-lg transition-all"
+                        placeholder="Type Dedicated Name..."
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Avatar choice */}
+                      <div>
+                        <label className="block text-[9px] uppercase tracking-wider font-mono font-bold text-zinc-400 mb-1">
+                          Avatar Emoji
+                        </label>
+                        <select
+                          value={players[0]?.avatar || "🦁"}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setPlayers(prev => {
+                              const copy = [...prev];
+                              if (copy[0]) {
+                                copy[0] = { ...copy[0], avatar: val };
+                              }
+                              return copy;
+                            });
+                            playSound("click");
+                          }}
+                          className="w-full bg-[#1c123c]/95 border border-[#ff007f]/20 text-xs font-sans font-bold text-white outline-none px-2 py-1.5 rounded-lg"
+                        >
+                          {["🦁", "🐼", "🦊", "🦅", "👑", "🚀", "🔥", "🦄", "👾", "🤖", "⚔️"].map((av) => (
+                            <option key={av} value={av}>{av}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Color Choice */}
+                      <div>
+                        <label className="block text-[9px] uppercase tracking-wider font-mono font-bold text-zinc-400 mb-1">
+                          Identity Color
+                        </label>
+                        <div className="flex items-center gap-1.5 h-[34px] px-1.5 bg-[#1c123c]/90 rounded-lg border border-[#ff007f]/10">
+                          {COLORS.slice(0, 4).map((col) => (
+                            <button
+                              key={col.value}
+                              onClick={() => {
+                                setPlayers(prev => {
+                                  const copy = [...prev];
+                                  if (copy[0]) {
+                                    copy[0] = { ...copy[0], color: col.value };
+                                  }
+                                  return copy;
+                                });
+                                playSound("click");
+                              }}
+                              className={`w-4 h-4 rounded-full border transition-transform ${
+                                players[0]?.color === col.value ? "scale-125 border-white ring-1 ring-[#ff007f]" : "border-transparent opacity-70 hover:opacity-100"
+                              }`}
+                              style={{ backgroundColor: col.value }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* AI Opponent Name Customization */}
+                    <div>
+                      <label className="block text-[9px] uppercase tracking-wider font-mono font-bold text-zinc-400 mb-1">
+                        Configure AI Bot Name
+                      </label>
+                      <input
+                        type="text"
+                        value={players[1]?.name || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPlayers(prev => {
+                            const copy = [...prev];
+                            if (copy[1]) {
+                              copy[1] = { ...copy[1], name: val };
+                            }
+                            return copy;
+                          });
+                        }}
+                        className="w-full bg-[#1c123c]/95 border border-zinc-700 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] text-xs font-sans font-bold text-zinc-300 outline-none px-3 py-1.5 rounded-lg transition-all"
+                        placeholder="Lexi-Bot AI"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 pt-2 border-t border-[#ff007f]/10 text-center">
+                  <span className="text-[10px] font-mono text-zinc-400">
+                    *Your custom names persist directly into match play!
+                  </span>
+                </div>
+              </div>
+
+              {/* BOLD HIGHLIGHTED RULES CARD */}
+              <div className="md:col-span-7 border-2 border-[#00f0ff]/40 bg-[#150d3a]/75 p-5 rounded-2xl shadow-[0_0_20px_rgba(0,240,255,0.15)] flex flex-col justify-between">
+                <div>
+                  <h3 className="text-sm font-sans font-black uppercase tracking-wider text-[#00f0ff] mb-2 flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-[#00f0ff]" /> 📖 OFFICIAL COMBAT RULES (READ CAREFULLY)
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-sans">
+                    <div className="bg-[#1c123c]/40 border border-[#00f0ff]/20 p-2.5 rounded-xl">
+                      <h4 className="font-sans font-extrabold text-[#00f0ff] uppercase mb-1 flex items-center gap-1">
+                        <span>🎯 1. HOW TO PLAY & SCORE</span>
+                      </h4>
+                      <p className="text-[11px] text-zinc-300 leading-relaxed">
+                        Click any empty chessboard square. Choose a letter to place. Contiguous vertical or horizontal blocks containing standard English words of <strong className="text-[#00f0ff]">3+ letters</strong> award points equal to length!
+                      </p>
+                    </div>
+
+                    <div className="bg-[#1c123c]/40 border border-[#ff007f]/20 p-2.5 rounded-xl">
+                      <h4 className="font-sans font-extrabold text-[#ff007f] uppercase mb-1 flex items-center gap-1">
+                        <span>✨ 2. PALINDROME & COMBO BONUSES</span>
+                      </h4>
+                      <p className="text-[11px] text-zinc-300 leading-relaxed">
+                        Form a palindrome (reads same forward and backward) or a bidirectional combo (both directions are valid words) to score <strong className="text-[#ff007f]">DOUBLE POINTS</strong>!
+                      </p>
+                    </div>
+
+                    <div className="bg-[#1c123c]/40 border border-amber-500/30 p-2.5 rounded-xl md:col-span-2">
+                      <h4 className="font-sans font-extrabold text-amber-400 uppercase mb-1 flex items-center gap-1">
+                        <span>⚠️ 3. TACTICAL DEFENSIVE RULES (ANTI-CHEAT)</span>
+                      </h4>
+                      <ul className="list-disc pl-4 text-[11px] text-zinc-300 space-y-1 leading-normal">
+                        <li>
+                          <strong className="text-amber-300">Suffix Preventing Rule</strong>: Appending common suffixes (like <strong className="text-white">S, ES, ED, ING, ER, EST, LY</strong>) to a previously scored word yields <strong className="text-white">0 points</strong>!
+                        </li>
+                        <li>
+                          <strong className="text-amber-300">Forbidden Abbreviation Penalties</strong>: Played short-forms (like <strong className="text-white">TIA, TIAP, LOP, ONL, NONL, nonlp, ing</strong>) incur immediate <strong className="text-[#ff007f]">negative point deductions</strong>!
+                        </li>
+                        <li>
+                          <strong className="text-amber-300">Profanity Prohibition</strong>: All swear words and inappropriate terms are strictly blocked on the board.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-2 text-center border-t border-[#00f0ff]/10 pt-1.5 text-[10px] font-mono text-[#00f0ff]/70 uppercase font-black tracking-widest">
+                  ★ PLACE LETTERS ANYWHERE TO FORGE DYNAMIC CHAINS ★
+                </div>
+              </div>
+            </div>
+
             {lobbyTab === "campaign" ? (
               <div className="col-span-12 flex flex-col gap-6 animate-fade-in" id="campaign-levels-selection">
                 {/* Campaign Header banner */}
@@ -2031,7 +2189,7 @@ export default function App() {
                       Arena Settings
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                       {/* Select Mode */}
                       <div>
                         <label className="block text-xs uppercase tracking-wider font-sans font-bold mb-2 text-zinc-300">
@@ -2120,6 +2278,29 @@ export default function App() {
                             >
                               <span>{sec === 0 ? "Infinite" : `${sec}s`}</span>
                               {timeLimitSec === sec && <Clock className="w-3 h-3 text-white" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 5-Second Auto-Submit Option */}
+                      <div>
+                        <label className="block text-xs uppercase tracking-wider font-sans font-bold mb-2 text-zinc-300">
+                          Auto-Submit (5s)
+                        </label>
+                        <div className="flex flex-col gap-2">
+                          {[true, false].map((enabled) => (
+                            <button
+                              key={enabled ? "on" : "off"}
+                              onClick={() => { setAutoSubmitEnabled(enabled); playSound("click"); }}
+                              className={`px-3 py-1.5 border text-left flex items-center justify-between text-xs font-sans font-bold uppercase transition-all rounded ${
+                                autoSubmitEnabled === enabled
+                                  ? "bg-[#ff007f] text-white border-transparent shadow-[0_0_6px_#ff007f]"
+                                  : "bg-[#1c123c]/60 text-zinc-300 border-[#ff007f]/10 hover:border-[#ff007f]/30"
+                              }`}
+                            >
+                              <span>{enabled ? "Enabled (5s)" : "Disabled (Relaxed)"}</span>
+                              {autoSubmitEnabled === enabled && <Sparkles className="w-3 h-3 text-white" />}
                             </button>
                           ))}
                         </div>
@@ -2305,6 +2486,19 @@ export default function App() {
                     id="manual-pause-btn"
                   >
                     {isGamePaused ? "▶️ Resume Match" : "⏸️ Pause Match"}
+                  </button>
+
+                  <div className="h-4 w-[1px] bg-zinc-700 mx-1" />
+
+                  <button
+                    onClick={() => { setAutoSubmitEnabled(!autoSubmitEnabled); playSound("click"); }}
+                    className={`px-3 py-1 text-[10px] uppercase font-sans rounded font-black transition-all border flex items-center gap-1 cursor-pointer ${
+                      autoSubmitEnabled
+                        ? "bg-[#ff007f]/20 border-[#ff007f] text-white shadow-[0_0_8px_#ff007f]"
+                        : "bg-[#1c123c] border-zinc-700 text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    {autoSubmitEnabled ? "⚡ Auto-Submit On" : "⏱️ Auto-Submit Off"}
                   </button>
                 </div>
 
@@ -3022,7 +3216,7 @@ export default function App() {
                   </div>
 
                   <div className="text-[9px] uppercase font-mono text-zinc-500 text-center">
-                    Click any square on the board grid first, then type with keys or physical keyboard • Automatically submits in 5s
+                    Click any square on the board grid first, then type with keys or physical keyboard {autoSubmitEnabled && "• Automatically submits in 5s"}
                   </div>
                 </div>
               </div>
@@ -3091,6 +3285,17 @@ export default function App() {
                 <option value="amber">📟 Amber Terminal</option>
                 <option value="forest">🌲 Forest Sage</option>
               </select>
+
+              <button
+                onClick={() => { setAutoSubmitEnabled(!autoSubmitEnabled); playSound("click"); }}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer select-none ${
+                  autoSubmitEnabled
+                    ? "bg-[#ff007f]/20 border-[#ff007f] text-white shadow-[0_0_8px_#ff007f]"
+                    : "bg-[#1c123c] border-zinc-700 text-zinc-400 hover:text-white"
+                }`}
+              >
+                {autoSubmitEnabled ? "⚡ Auto-Submit On" : "⏱️ Auto-Submit Off"}
+              </button>
 
               <button
                 onClick={() => {
