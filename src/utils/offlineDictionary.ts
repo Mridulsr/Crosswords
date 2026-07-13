@@ -30,8 +30,8 @@ export const OFFLINE_WORDS = new Set([
   "hero", "villain", "king", "queen", "prince", "lord", "lady", "sir", "chief", "leader", "boss", "staff", "crew", "team", "club",
   "user", "admin", "guest", "client", "agent", "bot", "code", "data", "file", "disk", "link", "web", "site", "page", "blog", "app",
   "pant", "panto", "pants", "pantomime", "paint", "paper", "part", "past", "path", "peak", "pear", "peel", "peer",
-  "gap", "gaps", "gapy", "pageant", "pageants", "pave", "paved", "paves", "paving", "cave", "caves", "gave", "gene", "gent", "germ", "gets", "gift", "gigs", "gild", "gill", "gilt", "gimp", "gins", "gips", "gird", "girl", "girt", "gist", "give", "glad", "glee", "glen", "glib", "glim", "glob", "glow", "glue", "glug", "gnat", "gnaw", "goad", "goal", "goat", "gobs", "goby", "gods", "goer", "goes", "gogo", "gold", "golf", "gone", "gong", "good", "goof", "goon", "gore", "gory", "gosh", "gout", "gown", "grab", "grad", "gram", "gran", "gray", "grew", "grey", "grid", "grim", "grin", "grip", "grit", "grog", "grom", "grow", "grub", "grum", "gulf", "gull", "gulp", "gums", "gunk", "guns", "gush", "gust", "guts",
-  "eta", "ate", "tea", "eat", "pea", "ape", "pet", "get", "got", "set", "let", "met", "net", "wet", "yet", "tap", "pat", "apt", "cap", "pac", "cat", "act", "rat", "art", "tar", "sat", "tas", "hat", "fat", "mat", "vat", "map", "pam", "amp", "sap", "pas", "asp", "rap", "par", "arp", "nap", "pan", "tan", "ant", "nat", "gap", "pag", "bag", "gab", "tab", "bat", "lab", "bal", "cab", "bac", "pad", "dad", "sad", "mad", "lad", "bad", "cad", "fad", "had", "rad", "tad", "wad", "yak", "elk", "yelk", "eye", "dye", "bye", "rye", "lye", "tie", "pie", "lie", "die", "fie", "vie", "how", "who", "why", "way", "day", "pay", "may", "say", "lay", "ray", "bay", "hay", "gay", "jay", "kay", "nay", "fay", "yaw", "jaw", "law", "raw", "saw", "paw", "cow", "bow", "sow", "row", "mow", "tow", "vow", "low", "now", "own", "won", "one", "two", "ten", "pen", "hen", "men", "den", "ken", "fen", "zen", "pin", "bin", "tin", "fin", "win", "sin", "din", "gin", "kin", "lin", "nib", "rib", "fib", "bib", "bob", "cob", "fob", "gob", "hob", "job", "lob", "mob", "rob", "sob", "tub", "rub", "sub", "pub", "hub", "cub", "dub", "bud", "mud", "cud", "dud", "rud", "sud", "hug", "mug", "dug", "bug", "tug", "rug", "jug", "pug", "gum", "hum", "sum", "rum", "bum", "mum", "dum", "sun", "run", "fun", "bun", "pun", "nun", "gun", "cup", "pup", "sup", "cut", "but", "out", "nut", "gut", "hut", "rut", "jut", "put", "dry", "cry", "try", "fry", "pry", "sly", "spy", "shy", "fly", "sky", "ski", "sea", "see", "fee", "bee", "toy", "coy", "joy", "soy", "key", "hey", "ley", "dey", "not", "hot", "lot", "pot", "rot", "dot", "cot", "jot", "tot", "bot", "sot", "wot", "god", "cod", "nod", "rod", "pod", "sod", "mod", "toe", "foe", "hoe", "roe", "woe", "oat", "era", "ear", "are", "our", "use", "sue", "due", "rue", "cue", "emu", "gnu", "owl", "awl", "eel", "oil", "ill", "all", "ell", "air", "fir", "sir", "fur", "oar", "car", "bar", "far", "jar", "war", "par", "mar", "her", "his", "him", "the", "and", "for", "nor", "yes", "too", "new", "old", "age", "ago", "fit", "bit", "hit", "sit", "lit", "kit", "pit", "wit", "tit", "zip", "rip", "tip", "lip", "sip", "dip", "hip", "pip", "nip", "gip", "lid", "kid", "rid", "did", "bid", "mid", "sid", "hid", "aid", "add", "odd", "end", "any", "its", "six", "son", "ton", "few", "ski", "van", "can", "fan", "ran", "ban", "rag", "tag", "wag", "sag", "sunny", "rainy", "cloudy", "windy", "snowy", "foggy", "muddy", "funny", "stormy", "misty", "breezy", "chilly", "icy", "warmth", "heats", "cools", "freezes", "frozen", "gales", "mild", "flames", "smokes", "woods", "stones", "clays", "muds", "sands", "dusts", "dirts", "earths", "forests", "valleys", "cliffs", "caves", "rivers", "streams", "brooks", "creeks", "lakes", "ponds", "pools", "waves", "tides", "coasts", "shores", "beaches", "islands", "worlds", "planets", "spaces", "stars", "clouds", "rains", "snows", "winds", "storms", "fogs", "mists", "hazes", "breezes", "weathers", "climates", "temps", "fires", "ashes", "coals", "grounds", "lands", "fields", "meadows", "deserts", "mounts", "hills", "canyons", "bends", "turns", "loops", "moves", "plays", "games", "words", "rules", "levels", "scores", "points", "clocks", "timers", "speeds", "tests", "tries", "helps", "saves", "backs", "nexts", "lasts", "firsts", "bests", "ideas", "plans", "goals", "hopes", "wishes", "dreams", "fears", "cares", "loves", "hates", "minds", "selves", "lives", "zones", "lines", "spots", "marks", "signs", "pages", "notes", "letters", "names", "lists", "texts", "mails", "posts", "views", "heros", "kings", "queens", "princes", "lords", "ladies", "chiefs", "leaders", "bosses", "staffs", "crews", "teams", "clubs", "users", "admins", "guests", "clients", "agents", "bots", "codes", "files", "disks", "links", "webs", "sites", "blogs", "apps", "pants", "paints", "papers", "parts", "pasts", "paths", "peaks", "pears", "peels", "peers", "gaps", "paves", "germs", "gifts", "girls", "golds", "golfs", "gongs", "goods", "goofs", "goons", "gores", "gowns", "grabs", "grads", "grams", "grans", "grays", "grids", "grins", "grips", "grits", "grows", "grubs", "gulfs", "gulls", "gulps", "gunks", "gushs", "gusts",
+  "gap", "gaps", "gapy", "pageant", "pageants", "pave", "paved", "paves", "paving", "cave", "caves", "gave", "gene", "gent", "germ", "gets", "gift", "gigs", "gild", "gill", "gilt", "gimp", "gins", "gird", "girl", "girt", "gist", "give", "glad", "glee", "glen", "glib", "glim", "glob", "glow", "glue", "glug", "gnat", "gnaw", "goad", "goal", "goat", "gobs", "goby", "gods", "goer", "goes", "gogo", "gold", "golf", "gone", "gong", "good", "goof", "goon", "gore", "gory", "gosh", "gout", "gown", "grab", "grad", "gram", "gran", "gray", "grew", "grey", "grid", "grim", "grin", "grip", "grit", "grog", "grom", "grow", "grub", "grum", "gulf", "gull", "gulp", "gums", "gunk", "guns", "gush", "gust", "guts",
+  "eta", "ate", "tea", "eat", "pea", "ape", "pet", "get", "got", "set", "let", "met", "net", "wet", "yet", "tap", "pat", "apt", "cap", "pac", "cat", "act", "rat", "art", "tar", "sat", "tas", "hat", "fat", "mat", "vat", "map", "pam", "amp", "sap", "pas", "asp", "rap", "par", "arp", "nap", "pan", "tan", "ant", "nat", "gap", "pag", "bag", "gab", "tab", "bat", "lab", "bal", "cab", "bac", "pad", "dad", "sad", "mad", "lad", "bad", "cad", "fad", "had", "rad", "tad", "wad", "yak", "elk", "yelk", "eye", "dye", "bye", "rye", "lye", "tie", "pie", "lie", "die", "fie", "vie", "how", "who", "why", "way", "day", "pay", "may", "say", "lay", "ray", "bay", "hay", "gay", "jay", "kay", "nay", "fay", "yaw", "jaw", "law", "raw", "saw", "paw", "cow", "bow", "sow", "row", "mow", "tow", "vow", "low", "now", "own", "won", "one", "two", "ten", "pen", "hen", "men", "den", "ken", "fen", "zen", "pin", "bin", "tin", "fin", "win", "sin", "din", "gin", "kin", "lin", "nib", "rib", "fib", "bib", "bob", "cob", "fob", "gob", "hob", "job", "lob", "mob", "rob", "sob", "tub", "rub", "sub", "pub", "hub", "cub", "dub", "bud", "mud", "cud", "dud", "rud", "sud", "hug", "mug", "dug", "bug", "tug", "rug", "jug", "pug", "gum", "hum", "sum", "rum", "bum", "mum", "dum", "sun", "run", "fun", "bun", "pun", "nun", "gun", "cup", "pup", "sup", "cut", "but", "out", "nut", "gut", "hut", "rut", "jut", "put", "dry", "cry", "try", "fry", "pry", "sly", "spy", "shy", "fly", "sky", "ski", "sea", "see", "fee", "bee", "toy", "coy", "joy", "soy", "key", "hey", "ley", "dey", "not", "hot", "lot", "pot", "rot", "dot", "cot", "jot", "tot", "bot", "sot", "wot", "god", "cod", "nod", "rod", "pod", "sod", "mod", "toe", "foe", "hoe", "roe", "woe", "oat", "era", "ear", "are", "our", "use", "sue", "due", "rue", "cue", "emu", "gnu", "owl", "awl", "eel", "oil", "ill", "all", "ell", "air", "fir", "sir", "fur", "oar", "car", "bar", "far", "jar", "war", "par", "mar", "her", "his", "him", "the", "and", "for", "nor", "yes", "too", "new", "old", "age", "ago", "fit", "bit", "hit", "sit", "lit", "kit", "pit", "wit", "tit", "zip", "rip", "tip", "lip", "sip", "dip", "hip", "pip", "nip", "lid", "kid", "rid", "did", "bid", "mid", "sid", "hid", "aid", "add", "odd", "end", "any", "its", "six", "son", "ton", "few", "ski", "van", "can", "fan", "ran", "ban", "rag", "tag", "wag", "sag", "sunny", "rainy", "cloudy", "windy", "snowy", "foggy", "muddy", "funny", "stormy", "misty", "breezy", "chilly", "icy", "warmth", "heats", "cools", "freezes", "frozen", "gales", "mild", "flames", "smokes", "woods", "stones", "clays", "muds", "sands", "dusts", "dirts", "earths", "forests", "valleys", "cliffs", "caves", "rivers", "streams", "brooks", "creeks", "lakes", "ponds", "pools", "waves", "tides", "coasts", "shores", "beaches", "islands", "worlds", "planets", "spaces", "stars", "clouds", "rains", "snows", "winds", "storms", "fogs", "mists", "hazes", "breezes", "weathers", "climates", "temps", "fires", "ashes", "coals", "grounds", "lands", "fields", "meadows", "deserts", "mounts", "hills", "canyons", "bends", "turns", "loops", "moves", "plays", "games", "words", "rules", "levels", "scores", "points", "clocks", "timers", "speeds", "tests", "tries", "helps", "saves", "backs", "nexts", "lasts", "firsts", "bests", "ideas", "plans", "goals", "hopes", "wishes", "dreams", "fears", "cares", "loves", "hates", "minds", "selves", "lives", "zones", "lines", "spots", "marks", "signs", "pages", "notes", "letters", "names", "lists", "texts", "mails", "posts", "views", "heros", "kings", "queens", "princes", "lords", "ladies", "chiefs", "leaders", "bosses", "staffs", "crews", "teams", "clubs", "users", "admins", "guests", "clients", "agents", "bots", "codes", "files", "disks", "links", "webs", "sites", "blogs", "apps", "pants", "paints", "papers", "parts", "pasts", "paths", "peaks", "pears", "peels", "peers", "gaps", "paves", "germs", "gifts", "girls", "golds", "golfs", "gongs", "goods", "goofs", "goons", "gores", "gowns", "grabs", "grads", "grams", "grans", "grays", "grids", "grins", "grips", "grits", "grows", "grubs", "gulfs", "gulls", "gulps", "gunks", "gushs", "gusts",
   "fox", "cow", "pig", "hen", "owl", "bee", "fly", "ant", "ape", "bat", "rat", "yak", "elk", "lion", "bear", "wolf", "deer", "lamb", "goat", "duck", "frog", "toad", "fish", "crab", "seal", "whale", "shark", "tiger", "horse", "sheep", "mouse", "snake", "snail", "spider", "worm"
 ]);
 
@@ -212,7 +212,38 @@ export const OFFLINE_DEFINITIONS: Record<string, { definition: string; partOfSpe
   king: { definition: "A male sovereign, ruler, or monarch who rules over a kingdom or territory.", partOfSpeech: "noun", funFact: "The word comes from Old English 'cyning', meaning 'of noble birth'!" }
 };
 
-export const FORBIDDEN_SHORT_FORMS = new Set(["tia", "tiap", "lop", "onl", "nonl", "nonlp", "enonlp", "ing", "tking"]);
+export const DISALLOWED_WORDS_DETAILS: Record<string, { definition: string; reason: string; partOfSpeech?: string }> = {
+  alu: {
+    definition: "A Hinglish word meaning 'potato', or a technical abbreviation for Arithmetic Logic Unit.",
+    reason: "Hinglish words and acronyms/abbreviations are strictly prohibited. Only standard English dictionary words are allowed.",
+    partOfSpeech: "Hinglish / Abbreviation"
+  },
+  aloo: {
+    definition: "A Hinglish word meaning 'potato'.",
+    reason: "Hinglish words are strictly prohibited. Only standard English dictionary words are allowed.",
+    partOfSpeech: "Hinglish"
+  },
+  gip: {
+    definition: "Non-standard slang, dialect variation, or abbreviation.",
+    reason: "Non-standard, slang, and dialect words are disallowed. Only standard, verified English words are permitted.",
+    partOfSpeech: "Slang / Abbreviation"
+  },
+  gips: {
+    definition: "Non-standard slang or plural dialect variation.",
+    reason: "Non-standard, slang, and dialect words are disallowed.",
+    partOfSpeech: "Slang"
+  },
+  gipy: {
+    definition: "Non-standard adjective or typing glitch.",
+    reason: "Non-standard, slang, and dialect words are disallowed.",
+    partOfSpeech: "Slang"
+  }
+};
+
+export const FORBIDDEN_SHORT_FORMS = new Set([
+  "tia", "tiap", "lop", "onl", "nonl", "nonlp", "enonlp", "ing", "tking",
+  "alu", "aloo", "gip", "gips", "gipy"
+]);
 
 export function isCussWord(word: string): boolean {
   const w = word.trim().toLowerCase();
@@ -239,6 +270,16 @@ export function getOfflineWord(word: string) {
       partOfSpeech: "prohibited",
       definition: "This word contains prohibited or inappropriate language.",
       reason: "Profanity/inappropriate language is strictly prohibited."
+    };
+  }
+
+  if (DISALLOWED_WORDS_DETAILS[clean]) {
+    return {
+      isValid: false,
+      word: clean,
+      partOfSpeech: DISALLOWED_WORDS_DETAILS[clean].partOfSpeech || "Disallowed",
+      definition: DISALLOWED_WORDS_DETAILS[clean].definition,
+      reason: DISALLOWED_WORDS_DETAILS[clean].reason
     };
   }
 

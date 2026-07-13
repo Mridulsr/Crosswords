@@ -238,6 +238,7 @@ app.post("/api/game/ai-move", async (req, res) => {
         Currently filled squares: ${JSON.stringify(activeCells)} (all other indices are empty).
         Rules:
         - A player can place exactly ONE uppercase letter (A-Z) at ANY empty cell index (0 to 999).
+        - Absolutely DO NOT target, build, or suggest non-English words, Hinglish terms (such as ALU, ALOO), abbreviations, acronyms, or disallowed slang (such as GIP, GIPS, GIPY, LOP, TIA, ONL). Only standard, valid English dictionary words are allowed.
         - Placing a letter should form or extend a contiguous block of letters HORIZONTALLY or VERTICALLY that creates a valid standard English word (preferably 3 or more letters). Words can be spelled forwards or backwards (for example, "TAE" on the board forms "EAT" when read backwards, which is valid and scores points based on the length of "EAT").
         - Already played words in this session: [${Array.from(playedWordsSet).join(", ")}]. Avoid repeating these if possible.
         - Difficulty: ${difficulty || "medium"}.

@@ -1283,7 +1283,7 @@ export default function App() {
     const hasVert = vCandidates.length > 0;
 
     // --- FORBIDDEN SHORT FORMS CHECK AND PENALTY ---
-    const FORBIDDEN_SHORT_FORMS = new Set(["tia", "tiap", "lop", "onl", "nonl", "nonlp", "enonlp", "ing", "tking"]);
+    const FORBIDDEN_SHORT_FORMS = new Set(["tia", "tiap", "lop", "onl", "nonl", "nonlp", "enonlp", "ing", "tking", "alu", "aloo", "gip", "gips", "gipy"]);
 
     let hasHorizPenalty = false;
     let horizPenaltyWord = "";
